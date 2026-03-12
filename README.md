@@ -1,9 +1,15 @@
-Project Summary
-Handcrafted Haven is a full-stack web application for artisans to sell their products. The goal of this project is for a team of students to build software development and team collaboration skills while teaching each other.
+# Handcrafted Haven
 
-WDD 430 Team 10 Member Names:
-  Carla Maetzin de De la Cruz Ramírez
-  Francesco Foresta
-  Monsuru Oladipo
-  Kenneth Maberi
-  Ricardo Mendoza Ramos
+## Project Summary
+
+Handcrafted Haven is a full-stack web application for artisans to sell their products.
+
+This project was created by a student team to build software development and collaboration skills while teaching and learning from one another.
+
+## WDD 430 Team 10
+
+- Carla Maetzin de De la Cruz Ramírez
+- Francesco Foresta
+- Monsuru Oladipo
+- Kenneth Maberi
+- Ricardo Mendoza Ramos

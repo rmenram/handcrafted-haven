@@ -11,5 +11,6 @@ This project was created by a student team to build software development and col
 - Carla Maetzin de De la Cruz Ramírez
 - Francesco Foresta
 - Monsuru Oladipo
+- Aleksandr Kuklin
 - Kenneth Maberi
 - Ricardo Mendoza Ramos

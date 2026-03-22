@@ -35,6 +35,8 @@ export async function connectToDatabase() {
     cache.promise = mongoose.connect(getMongoUri(), {
       bufferCommands: false,
       dbName: 'handcrafted_haven',
+      family: 4,
+      serverSelectionTimeoutMS: 10000,
     });
   }
 

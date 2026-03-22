@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { signAuthToken } from '@/lib/auth';
 import { connectToDatabase } from '@/lib/mongodb';
 import User from '@/models/User';
 
@@ -10,18 +10,8 @@ const loginSchema = z.object({
   password: z.string().min(8),
 });
 
-function getJwtSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error('Missing JWT_SECRET environment variable');
-  }
-
-  return secret;
-}
-
 export async function POST(request: Request) {
   try {
-    const jwtSecret = getJwtSecret();
     const body = await request.json();
     const parsed = loginSchema.safeParse(body);
 
@@ -41,18 +31,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Invalid email or password' }, { status: 401 });
     }
 
-    const token = jwt.sign(
-      {
-        sub: user._id.toString(),
-        email: user.email,
-        name: user.name,
-      },
-      jwtSecret,
-      { expiresIn: '7d' }
-    );
+    const token = signAuthToken({
+      sub: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    });
 
-    return NextResponse.json({
-      token,
+    const response = NextResponse.json({
       user: {
         id: user._id.toString(),
         name: user.name,
@@ -60,6 +46,18 @@ export async function POST(request: Request) {
         role: user.role,
       },
     });
+
+    response.cookies.set({
+      name: 'auth_token',
+      value: token,
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
+    return response;
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : 'Login failed' },

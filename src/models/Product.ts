@@ -10,6 +10,7 @@ const productSchema = new Schema(
     artisanName: { type: String, required: true, trim: true },
     artisanUserId: { type: Schema.Types.ObjectId, ref: 'User' },
     inStock: { type: Boolean, default: true },
+    featured: { type: Boolean, default: false },
     rating: { type: Number, default: 0, min: 0, max: 5 },
     reviewCount: { type: Number, default: 0, min: 0 },
   },
@@ -18,6 +19,14 @@ const productSchema = new Schema(
 
 export type ProductDocument = InferSchemaType<typeof productSchema>;
 
-const Product = models.Product || model('Product', productSchema);
+const existingProductModel = models.Product;
+
+if (existingProductModel && !existingProductModel.schema.path('featured')) {
+  existingProductModel.schema.add({
+    featured: { type: Boolean, default: false },
+  });
+}
+
+const Product = existingProductModel || model('Product', productSchema);
 
 export default Product;

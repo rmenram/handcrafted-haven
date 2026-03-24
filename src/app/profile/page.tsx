@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { Heart, LogOut, Package, Settings, User } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type TabKey = 'profile' | 'orders' | 'products' | 'wishlist' | 'settings';
 type AuthUser = {
   id: string;
   name: string;
   email: string;
-  role: 'purchaser' | 'artisan';
+  role: 'purchaser' | 'artisan' | 'admin';
   phone?: string;
 };
 
@@ -29,6 +29,10 @@ type ArtisanProduct = {
   image: string;
   price: number;
   inStock: boolean;
+  featured: boolean;
+  artisanName?: string;
+  rating?: number;
+  reviewCount?: number;
 };
 
 const baseTabs: Array<{ key: TabKey; label: string; icon: typeof User }> = [
@@ -36,6 +40,16 @@ const baseTabs: Array<{ key: TabKey; label: string; icon: typeof User }> = [
   { key: 'wishlist', label: 'Wishlist', icon: Heart },
   { key: 'settings', label: 'Settings', icon: Settings },
 ];
+
+const productCategories = [
+  'Kitchen',
+  'Home Decor',
+  'Stationery',
+  'Accessories',
+  'Textiles',
+  'Art',
+  'Wellness',
+] as const;
 
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<TabKey>('profile');
@@ -57,12 +71,36 @@ export default function ProfilePage() {
   const [productId, setProductId] = useState<string | null>(null);
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
-  const [productCategory, setProductCategory] = useState('');
+  const [productCategory, setProductCategory] = useState<string>(productCategories[0]);
   const [productImage, setProductImage] = useState('');
   const [productPrice, setProductPrice] = useState('');
   const [productInStock, setProductInStock] = useState(true);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [isSavingFeaturedProducts, setIsSavingFeaturedProducts] = useState(false);
+  const [selectedFeaturedProductIds, setSelectedFeaturedProductIds] = useState<string[]>([]);
+  const [adminProductSearch, setAdminProductSearch] = useState('');
+  const [adminCategoryFilter, setAdminCategoryFilter] = useState<string>('all');
   const [productSuccess, setProductSuccess] = useState<string | null>(null);
+
+  const filteredAdminProducts = useMemo(() => {
+    const searchTerm = adminProductSearch.trim().toLowerCase();
+
+    return products.filter((product) => {
+      const matchesCategory =
+        adminCategoryFilter === 'all' || product.category === adminCategoryFilter;
+
+      if (!searchTerm) {
+        return matchesCategory;
+      }
+
+      return (
+        matchesCategory &&
+        [product.name, product.description, product.category, product.artisanName]
+          .filter(Boolean)
+          .some((value) => value?.toLowerCase().includes(searchTerm))
+      );
+    });
+  }, [products, adminCategoryFilter, adminProductSearch]);
 
   useEffect(() => {
     let isMounted = true;
@@ -153,6 +191,38 @@ export default function ProfilePage() {
           setIsLoadingProducts(false);
         }
       }
+
+      if (currentUser.role === 'admin') {
+        setIsLoadingProducts(true);
+        setProductsError(null);
+        setProductSuccess(null);
+        try {
+          const response = await fetch('/api/products/featured', { cache: 'no-store' });
+          const data = (await response.json()) as {
+            message?: string;
+            products?: ArtisanProduct[];
+          };
+
+          if (!response.ok) {
+            setProductsError(data.message ?? 'Unable to load products');
+            setProducts([]);
+            setSelectedFeaturedProductIds([]);
+            return;
+          }
+
+          const loadedProducts = data.products ?? [];
+          setProducts(loadedProducts);
+          setSelectedFeaturedProductIds(
+            loadedProducts.filter((product) => product.featured).map((product) => product.id)
+          );
+        } catch {
+          setProductsError('Unable to connect. Please try again.');
+          setProducts([]);
+          setSelectedFeaturedProductIds([]);
+        } finally {
+          setIsLoadingProducts(false);
+        }
+      }
     }
 
     loadRoleData();
@@ -206,7 +276,7 @@ export default function ProfilePage() {
     setProductId(null);
     setProductName('');
     setProductDescription('');
-    setProductCategory('');
+    setProductCategory(productCategories[0]);
     setProductImage('');
     setProductPrice('');
     setProductInStock(true);
@@ -245,11 +315,23 @@ export default function ProfilePage() {
     setIsSavingProduct(true);
 
     try {
-      const response = await fetch('/api/products/me', {
-        method: productId ? 'PATCH' : 'POST',
+      if (authUser?.role === 'admin' && !productId) {
+        setProductsError('Select a product to edit. Admins can update existing products only.');
+        setIsSavingProduct(false);
+        return;
+      }
+
+      const endpoint =
+        authUser?.role === 'admin' && productId
+          ? `/api/products/admin/${productId}`
+          : '/api/products/me';
+      const method = authUser?.role === 'admin' ? 'PATCH' : productId ? 'PATCH' : 'POST';
+
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...(productId ? { id: productId } : {}),
+          ...(authUser?.role !== 'admin' && productId ? { id: productId } : {}),
           name: productName.trim(),
           description: productDescription.trim(),
           category: productCategory.trim(),
@@ -284,17 +366,62 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleSaveFeaturedProducts() {
+    setProductsError(null);
+    setProductSuccess(null);
+    setIsSavingFeaturedProducts(true);
+
+    try {
+      const response = await fetch('/api/products/featured', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds: selectedFeaturedProductIds }),
+      });
+
+      const data = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        setProductsError(data.message ?? 'Unable to update featured products');
+        return;
+      }
+
+      setProducts((prev) =>
+        prev.map((product) => ({
+          ...product,
+          featured: selectedFeaturedProductIds.includes(product.id),
+        }))
+      );
+      setProductSuccess('Featured products updated successfully.');
+    } catch {
+      setProductsError('Unable to connect. Please try again.');
+    } finally {
+      setIsSavingFeaturedProducts(false);
+    }
+  }
+
   const userRole = authUser?.role;
 
   const tabs: Array<{ key: TabKey; label: string; icon: typeof User }> =
-    userRole === 'purchaser'
-      ? [baseTabs[0], { key: 'orders', label: 'Orders', icon: Package }, baseTabs[1], baseTabs[2]]
-      : [
+    userRole === 'artisan'
+      ? [
           baseTabs[0],
           { key: 'products', label: 'Products', icon: Package },
           baseTabs[1],
           baseTabs[2],
-        ];
+        ]
+      : userRole === 'admin'
+        ? [
+            baseTabs[0],
+            { key: 'products', label: 'Products', icon: Package },
+            baseTabs[1],
+            baseTabs[2],
+          ]
+        : [
+            baseTabs[0],
+            { key: 'orders', label: 'Orders', icon: Package },
+            baseTabs[1],
+            baseTabs[2],
+          ];
 
   const tabButtonClasses = (key: TabKey) =>
     [
@@ -504,158 +631,414 @@ export default function ProfilePage() {
             </section>
           )}
 
-          {activeTab === 'products' && authUser.role === 'artisan' && (
-            <section className='rounded-lg border border-border bg-card'>
-              <header className='space-y-1 border-b border-border p-6'>
-                <h2 className='text-xl font-bold'>My Products</h2>
-                <p className='text-sm text-muted-foreground'>Create and manage items for sale</p>
-              </header>
-              <div className='space-y-6 p-6'>
-                <div className='space-y-4 rounded-lg border border-border bg-background p-4'>
-                  <h3 className='font-semibold'>
-                    {productId ? 'Edit Product' : 'Add New Product'}
-                  </h3>
-                  <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-                    <div className='space-y-2'>
-                      <label htmlFor='productName' className='text-sm font-medium'>
-                        Name
-                      </label>
-                      <input
-                        id='productName'
-                        value={productName}
-                        onChange={(event) => setProductName(event.target.value)}
-                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                      />
-                    </div>
-                    <div className='space-y-2'>
-                      <label htmlFor='productCategory' className='text-sm font-medium'>
-                        Category
-                      </label>
-                      <input
-                        id='productCategory'
-                        value={productCategory}
-                        onChange={(event) => setProductCategory(event.target.value)}
-                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                      />
-                    </div>
-                  </div>
-                  <div className='space-y-2'>
-                    <label htmlFor='productDescription' className='text-sm font-medium'>
-                      Description
-                    </label>
-                    <textarea
-                      id='productDescription'
-                      rows={4}
-                      value={productDescription}
-                      onChange={(event) => setProductDescription(event.target.value)}
-                      className='w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                    />
-                  </div>
-                  <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-                    <div className='space-y-2'>
-                      <label htmlFor='productImage' className='text-sm font-medium'>
-                        Image URL
-                      </label>
-                      <input
-                        id='productImage'
-                        value={productImage}
-                        onChange={(event) => setProductImage(event.target.value)}
-                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                      />
-                    </div>
-                    <div className='space-y-2'>
-                      <label htmlFor='productPrice' className='text-sm font-medium'>
-                        Price
-                      </label>
-                      <input
-                        id='productPrice'
-                        type='number'
-                        min='0'
-                        step='0.01'
-                        value={productPrice}
-                        onChange={(event) => setProductPrice(event.target.value)}
-                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                      />
-                    </div>
-                  </div>
-                  <label className='inline-flex items-center gap-2 text-sm text-foreground'>
-                    <input
-                      type='checkbox'
-                      checked={productInStock}
-                      onChange={(event) => setProductInStock(event.target.checked)}
-                      className='h-4 w-4 rounded border-border'
-                    />
-                    In stock
-                  </label>
-
-                  {productsError && <p className='text-sm text-destructive'>{productsError}</p>}
-                  {productSuccess && <p className='text-sm text-green-600'>{productSuccess}</p>}
-
-                  <div className='flex items-center gap-3'>
-                    <button
-                      type='button'
-                      onClick={handleSaveProduct}
-                      disabled={isSavingProduct}
-                      className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700'
-                    >
-                      {isSavingProduct
-                        ? 'Saving...'
-                        : productId
-                          ? 'Update Product'
-                          : 'Create Product'}
-                    </button>
-                    {productId && (
-                      <button
-                        type='button'
-                        onClick={resetProductForm}
-                        className='inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent'
-                      >
-                        Cancel Edit
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className='space-y-3'>
-                  <h3 className='font-semibold'>Current Listings</h3>
-                  {isLoadingProducts && (
-                    <p className='text-sm text-muted-foreground'>Loading your products...</p>
-                  )}
-                  {!isLoadingProducts && products.length === 0 && !productsError && (
-                    <p className='text-sm text-muted-foreground'>
-                      No products yet. Add your first listing above.
-                    </p>
-                  )}
-                  {!isLoadingProducts &&
-                    products.map((product) => (
-                      <article
-                        key={product.id}
-                        className='flex items-start justify-between gap-4 rounded-lg border border-border bg-background p-4'
-                      >
-                        <div className='space-y-1'>
-                          <p className='font-semibold'>{product.name}</p>
-                          <p className='text-sm text-muted-foreground'>{product.category}</p>
-                          <p className='max-w-xl text-sm text-muted-foreground'>
-                            {product.description}
-                          </p>
-                          <p className='text-sm font-medium'>${product.price.toFixed(2)}</p>
-                          <p className='text-xs text-muted-foreground'>
-                            {product.inStock ? 'In stock' : 'Out of stock'}
-                          </p>
-                        </div>
+          {activeTab === 'products' &&
+            (authUser.role === 'artisan' || authUser.role === 'admin') && (
+              <section className='rounded-lg border border-border bg-card'>
+                <header className='space-y-1 border-b border-border p-6'>
+                  <h2 className='text-xl font-bold'>My Products</h2>
+                  <p className='text-sm text-muted-foreground'>
+                    {authUser.role === 'admin'
+                      ? 'Manage the full product catalog and choose featured products'
+                      : 'Create and manage items for sale'}
+                  </p>
+                </header>
+                {authUser.role === 'admin' ? (
+                  <div className='space-y-6 p-6'>
+                    <div className='rounded-lg border border-border bg-background p-4'>
+                      <h3 className='font-semibold'>Homepage Featured Products</h3>
+                      <p className='mt-1 text-sm text-muted-foreground'>
+                        Select the products you want to highlight on the homepage.
+                      </p>
+                      <div className='mt-4 flex items-center gap-3'>
                         <button
                           type='button'
-                          onClick={() => startProductEdit(product)}
-                          className='inline-flex h-8 items-center justify-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent'
+                          onClick={handleSaveFeaturedProducts}
+                          disabled={isSavingFeaturedProducts}
+                          className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-60'
                         >
-                          Edit
+                          {isSavingFeaturedProducts ? 'Saving...' : 'Save Featured Selection'}
                         </button>
-                      </article>
-                    ))}
-                </div>
-              </div>
-            </section>
-          )}
+                        <p className='text-xs text-muted-foreground'>
+                          Selected: {selectedFeaturedProductIds.length}
+                        </p>
+                      </div>
+                      {productsError && (
+                        <p className='mt-3 text-sm text-destructive'>{productsError}</p>
+                      )}
+                      {productSuccess && (
+                        <p className='mt-3 text-sm text-green-600'>{productSuccess}</p>
+                      )}
+                    </div>
+
+                    <div className='space-y-4 rounded-lg border border-border bg-background p-4'>
+                      <h3 className='font-semibold'>Edit Product Details</h3>
+                      <p className='text-sm text-muted-foreground'>
+                        Select a product from the list below, then update its details here.
+                      </p>
+                      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                        <div className='space-y-2'>
+                          <label htmlFor='adminProductName' className='text-sm font-medium'>
+                            Name
+                          </label>
+                          <input
+                            id='adminProductName'
+                            value={productName}
+                            onChange={(event) => setProductName(event.target.value)}
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          />
+                        </div>
+                        <div className='space-y-2'>
+                          <label htmlFor='adminProductCategory' className='text-sm font-medium'>
+                            Category
+                          </label>
+                          <select
+                            id='adminProductCategory'
+                            value={productCategory}
+                            onChange={(event) => setProductCategory(event.target.value)}
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          >
+                            {productCategories.map((category) => (
+                              <option key={category} value={category}>
+                                {category}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className='space-y-2'>
+                        <label htmlFor='adminProductDescription' className='text-sm font-medium'>
+                          Description
+                        </label>
+                        <textarea
+                          id='adminProductDescription'
+                          rows={4}
+                          value={productDescription}
+                          onChange={(event) => setProductDescription(event.target.value)}
+                          className='w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                        />
+                      </div>
+                      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                        <div className='space-y-2'>
+                          <label htmlFor='adminProductImage' className='text-sm font-medium'>
+                            Image URL
+                          </label>
+                          <input
+                            id='adminProductImage'
+                            value={productImage}
+                            onChange={(event) => setProductImage(event.target.value)}
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          />
+                        </div>
+                        <div className='space-y-2'>
+                          <label htmlFor='adminProductPrice' className='text-sm font-medium'>
+                            Price
+                          </label>
+                          <input
+                            id='adminProductPrice'
+                            type='number'
+                            min='0'
+                            step='0.01'
+                            value={productPrice}
+                            onChange={(event) => setProductPrice(event.target.value)}
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          />
+                        </div>
+                      </div>
+                      <label className='inline-flex items-center gap-2 text-sm text-foreground'>
+                        <input
+                          type='checkbox'
+                          checked={productInStock}
+                          onChange={(event) => setProductInStock(event.target.checked)}
+                          className='h-4 w-4 rounded border-border'
+                        />
+                        In stock
+                      </label>
+
+                      <div className='flex items-center gap-3'>
+                        <button
+                          type='button'
+                          onClick={handleSaveProduct}
+                          disabled={isSavingProduct || !productId}
+                          className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-60'
+                        >
+                          {isSavingProduct ? 'Saving...' : 'Save Product Changes'}
+                        </button>
+                        <button
+                          type='button'
+                          onClick={resetProductForm}
+                          className='inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent'
+                        >
+                          Clear Selection
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className='space-y-3'>
+                      <h3 className='font-semibold'>All Products</h3>
+                      <div className='grid grid-cols-1 gap-3 rounded-lg border border-border bg-background p-4 md:grid-cols-2'>
+                        <div className='space-y-2'>
+                          <label htmlFor='adminProductSearch' className='text-sm font-medium'>
+                            Search products
+                          </label>
+                          <input
+                            id='adminProductSearch'
+                            value={adminProductSearch}
+                            onChange={(event) => setAdminProductSearch(event.target.value)}
+                            placeholder='Search name, description, artisan...'
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          />
+                        </div>
+                        <div className='space-y-2'>
+                          <label htmlFor='adminCategoryFilter' className='text-sm font-medium'>
+                            Category filter
+                          </label>
+                          <select
+                            id='adminCategoryFilter'
+                            value={adminCategoryFilter}
+                            onChange={(event) => setAdminCategoryFilter(event.target.value)}
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          >
+                            <option value='all'>All categories</option>
+                            {productCategories.map((category) => (
+                              <option key={category} value={category}>
+                                {category}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      {isLoadingProducts && (
+                        <p className='text-sm text-muted-foreground'>Loading products...</p>
+                      )}
+                      {!isLoadingProducts && products.length === 0 && !productsError && (
+                        <p className='text-sm text-muted-foreground'>No products found.</p>
+                      )}
+                      {!isLoadingProducts &&
+                        products.length > 0 &&
+                        filteredAdminProducts.length === 0 && (
+                          <p className='text-sm text-muted-foreground'>
+                            No products match your current filters.
+                          </p>
+                        )}
+
+                      {!isLoadingProducts &&
+                        filteredAdminProducts.map((product) => {
+                          const isChecked = selectedFeaturedProductIds.includes(product.id);
+
+                          return (
+                            <article
+                              key={product.id}
+                              className='rounded-lg border border-border bg-background p-4'
+                            >
+                              <div className='flex items-start justify-between gap-4'>
+                                <div className='space-y-1'>
+                                  <p className='font-semibold'>{product.name}</p>
+                                  <p className='text-sm text-muted-foreground'>
+                                    {product.category}
+                                    {product.artisanName ? ` - by ${product.artisanName}` : ''}
+                                  </p>
+                                  <p className='max-w-xl text-sm text-muted-foreground'>
+                                    {product.description}
+                                  </p>
+                                  <p className='text-sm font-medium'>${product.price.toFixed(2)}</p>
+                                  <p className='text-xs text-muted-foreground'>
+                                    {product.inStock ? 'In stock' : 'Out of stock'}
+                                    {typeof product.rating === 'number' &&
+                                      typeof product.reviewCount === 'number' &&
+                                      ` • ${product.rating.toFixed(1)} (${product.reviewCount} reviews)`}
+                                  </p>
+                                </div>
+
+                                <label className='inline-flex items-center gap-2 text-sm font-medium'>
+                                  <input
+                                    type='checkbox'
+                                    checked={isChecked}
+                                    onChange={(event) => {
+                                      setSelectedFeaturedProductIds((prev) => {
+                                        if (event.target.checked) {
+                                          return [...prev, product.id];
+                                        }
+
+                                        return prev.filter((id) => id !== product.id);
+                                      });
+                                    }}
+                                    className='h-4 w-4 rounded border-border'
+                                  />
+                                  Featured
+                                </label>
+
+                                <button
+                                  type='button'
+                                  onClick={() => startProductEdit(product)}
+                                  className='inline-flex h-8 items-center justify-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent'
+                                >
+                                  Edit
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className='space-y-6 p-6'>
+                    <div className='space-y-4 rounded-lg border border-border bg-background p-4'>
+                      <h3 className='font-semibold'>
+                        {productId ? 'Edit Product' : 'Add New Product'}
+                      </h3>
+                      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                        <div className='space-y-2'>
+                          <label htmlFor='productName' className='text-sm font-medium'>
+                            Name
+                          </label>
+                          <input
+                            id='productName'
+                            value={productName}
+                            onChange={(event) => setProductName(event.target.value)}
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          />
+                        </div>
+                        <div className='space-y-2'>
+                          <label htmlFor='productCategory' className='text-sm font-medium'>
+                            Category
+                          </label>
+                          <select
+                            id='productCategory'
+                            value={productCategory}
+                            onChange={(event) => setProductCategory(event.target.value)}
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          >
+                            {productCategories.map((category) => (
+                              <option key={category} value={category}>
+                                {category}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className='space-y-2'>
+                        <label htmlFor='productDescription' className='text-sm font-medium'>
+                          Description
+                        </label>
+                        <textarea
+                          id='productDescription'
+                          rows={4}
+                          value={productDescription}
+                          onChange={(event) => setProductDescription(event.target.value)}
+                          className='w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                        />
+                      </div>
+                      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                        <div className='space-y-2'>
+                          <label htmlFor='productImage' className='text-sm font-medium'>
+                            Image URL
+                          </label>
+                          <input
+                            id='productImage'
+                            value={productImage}
+                            onChange={(event) => setProductImage(event.target.value)}
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          />
+                        </div>
+                        <div className='space-y-2'>
+                          <label htmlFor='productPrice' className='text-sm font-medium'>
+                            Price
+                          </label>
+                          <input
+                            id='productPrice'
+                            type='number'
+                            min='0'
+                            step='0.01'
+                            value={productPrice}
+                            onChange={(event) => setProductPrice(event.target.value)}
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          />
+                        </div>
+                      </div>
+                      <label className='inline-flex items-center gap-2 text-sm text-foreground'>
+                        <input
+                          type='checkbox'
+                          checked={productInStock}
+                          onChange={(event) => setProductInStock(event.target.checked)}
+                          className='h-4 w-4 rounded border-border'
+                        />
+                        In stock
+                      </label>
+
+                      {productsError && <p className='text-sm text-destructive'>{productsError}</p>}
+                      {productSuccess && <p className='text-sm text-green-600'>{productSuccess}</p>}
+
+                      <div className='flex items-center gap-3'>
+                        <button
+                          type='button'
+                          onClick={handleSaveProduct}
+                          disabled={isSavingProduct}
+                          className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700'
+                        >
+                          {isSavingProduct
+                            ? 'Saving...'
+                            : productId
+                              ? 'Update Product'
+                              : 'Create Product'}
+                        </button>
+                        {productId && (
+                          <button
+                            type='button'
+                            onClick={resetProductForm}
+                            className='inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent'
+                          >
+                            Cancel Edit
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className='space-y-3'>
+                      <h3 className='font-semibold'>Current Listings</h3>
+                      {isLoadingProducts && (
+                        <p className='text-sm text-muted-foreground'>Loading your products...</p>
+                      )}
+                      {!isLoadingProducts && products.length === 0 && !productsError && (
+                        <p className='text-sm text-muted-foreground'>
+                          No products yet. Add your first listing above.
+                        </p>
+                      )}
+                      {!isLoadingProducts &&
+                        products.map((product) => (
+                          <article
+                            key={product.id}
+                            className='flex items-start justify-between gap-4 rounded-lg border border-border bg-background p-4'
+                          >
+                            <div className='space-y-1'>
+                              <p className='font-semibold'>{product.name}</p>
+                              <p className='text-sm text-muted-foreground'>{product.category}</p>
+                              <p className='max-w-xl text-sm text-muted-foreground'>
+                                {product.description}
+                              </p>
+                              <p className='text-sm font-medium'>${product.price.toFixed(2)}</p>
+                              <p className='text-xs text-muted-foreground'>
+                                {product.inStock ? 'In stock' : 'Out of stock'}
+                              </p>
+                              {product.featured && (
+                                <p className='text-xs font-medium text-amber-700'>
+                                  Featured product
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type='button'
+                              onClick={() => startProductEdit(product)}
+                              className='inline-flex h-8 items-center justify-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent'
+                            >
+                              Edit
+                            </button>
+                          </article>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
 
           {activeTab === 'wishlist' && (
             <section className='rounded-lg border border-border bg-card'>

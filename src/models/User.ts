@@ -8,7 +8,7 @@ const userSchema = new Schema(
     phone: { type: String, trim: true, default: '' },
     role: {
       type: String,
-      enum: ['purchaser', 'artisan'],
+      enum: ['purchaser', 'artisan', 'admin'],
       default: 'purchaser',
       required: true,
     },

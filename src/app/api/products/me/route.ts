@@ -62,6 +62,7 @@ export async function GET() {
         image: product.image,
         price: product.price,
         inStock: product.inStock,
+        featured: Boolean(product.featured),
       })),
     });
   } catch {
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
           image: product.image,
           price: product.price,
           inStock: product.inStock,
+          featured: Boolean(product.featured),
         },
       },
       { status: 201 }
@@ -161,6 +163,7 @@ export async function PATCH(request: Request) {
         image: product.image,
         price: product.price,
         inStock: product.inStock,
+        featured: Boolean(product.featured),
       },
     });
   } catch {

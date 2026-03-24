@@ -4,7 +4,7 @@ export type AuthTokenPayload = JwtPayload & {
   sub: string;
   email: string;
   name: string;
-  role: 'purchaser' | 'artisan';
+  role: 'purchaser' | 'artisan' | 'admin';
 };
 
 export function getJwtSecret() {

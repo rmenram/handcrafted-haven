@@ -1,5 +1,5 @@
-import Image from 'next/image';
-import { ShoppingCart, Star } from 'lucide-react';
+
+import { Star, ShoppingCart } from "lucide-react";
 
 type Product = {
   id: string;
@@ -12,73 +12,85 @@ type Product = {
   featured?: boolean;
 };
 
-type FeaturedProductsProps = {
-  products?: Product[];
-};
-
-export default function FeaturedProducts({ products = [] }: FeaturedProductsProps) {
+export default function FeaturedProducts({ products = [] }: { products?: Product[] }) {
   return (
-    <section className='py-16'>
-      <div className='mx-auto max-w-6xl space-y-8 px-4'>
-        <header className='space-y-2'>
-          <h2 className='text-3xl font-semibold tracking-tight'>Featured Products</h2>
-          <p className='text-slate-600'>
+    <section className="py-16">
+      <div className="mx-auto max-w-6xl px-4 space-y-8">
+        <header className="space-y-2">
+          <h2 className="text-3xl font-semibold tracking-tight">Featured Products</h2>
+          <p className="text-slate-600">
             A curated selection of handcrafted items made with care and creativity.
           </p>
         </header>
 
         {products.length === 0 ? (
-          <p className='text-slate-500'>No featured products available.</p>
+          <p className="text-slate-500">No featured products available.</p>
         ) : (
-          <div className='grid gap-8 sm:grid-cols-2 lg:grid-cols-3'>
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {products.map((product) => (
-              <article
+              <div
                 key={product.id}
-                className='relative overflow-hidden rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md'
+                className="rounded-xl border bg-white shadow-sm hover:shadow-md transition-shadow overflow-hidden relative"
               >
-                <div className='relative aspect-square bg-slate-100'>
+                {/* Image wrapper (relative for badge positioning) */}
+                <div className="relative aspect-square bg-slate-100 flex items-center justify-center">
                   {product.image ? (
-                    <Image
+                    <img
                       src={product.image}
                       alt={product.name}
-                      fill
-                      className='object-cover'
-                      sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                      className="object-cover w-full h-full"
                     />
                   ) : (
-                    <div className='flex h-full w-full items-center justify-center text-sm text-slate-400'>
-                      No image
-                    </div>
+                    <span className="text-slate-400 text-sm">No image</span>
                   )}
 
+                  {/* ⭐ Featured Badge (top-left) */}
                   {product.featured && (
-                    <span className='absolute left-3 top-3 rounded-md bg-yellow-400 px-2 py-1 text-xs font-medium text-yellow-900 shadow-sm'>
+                    <span
+                      className="
+                        absolute top-3 left-3
+                        bg-yellow-400 text-yellow-900
+                        text-xs font-medium
+                        px-2 py-1 rounded-md shadow-sm
+                      "
+                    >
                       Featured
                     </span>
                   )}
                 </div>
 
-                <div className='space-y-3 p-5'>
-                  <h3 className='text-lg font-medium'>{product.name}</h3>
-                  <p className='font-semibold text-slate-600'>${product.price.toFixed(2)}</p>
+                {/* Content */}
+                <div className="p-5 space-y-3">
+                  <h3 className="text-lg font-medium">{product.name}</h3>
 
-                  <div className='flex items-center gap-1 text-sm text-slate-700'>
-                    <Star className='h-4 w-4 fill-yellow-400 text-yellow-400' />
-                    {product.rating.toFixed(1)}
-                    <span className='text-slate-500'>({product.reviews})</span>
+                  <p className="text-slate-600 font-semibold">${product.price}</p>
+
+                  {/* Rating */}
+                  <div className="flex items-center gap-1 text-sm text-slate-700">
+                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                    {product.rating}
+                    <span className="text-slate-500">({product.reviews})</span>
                   </div>
 
-                  <p className='text-xs text-slate-500'>by {product.seller}</p>
+                  {/* Seller */}
+                  <p className="text-xs text-slate-500">by {product.seller}</p>
                 </div>
 
+                {/* 🟧 Add Chip (bottom-right) */}
                 <button
-                  type='button'
-                  className='absolute bottom-4 right-4 inline-flex items-center gap-1 rounded-full bg-orange-500 px-3 py-1.5 text-sm text-white shadow-sm transition hover:bg-orange-600'
+                  className="
+                    absolute bottom-4 right-4
+                    inline-flex items-center gap-1
+                    px-3 py-1.5
+                    bg-orange-500 text-white text-sm
+                    rounded-full shadow-sm
+                    hover:bg-orange-600 transition
+                  "
                 >
-                  <ShoppingCart className='h-4 w-4' />
+                  <ShoppingCart className="w-4 h-4" />
                   Add
                 </button>
-              </article>
+              </div>
             ))}
           </div>
         )}

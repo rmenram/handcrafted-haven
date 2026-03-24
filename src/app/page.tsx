@@ -1,66 +1,75 @@
-import Image from 'next/image';
-import styles from './page.module.css';
+import FeaturedProducts from "@/components/home/FeaturedProducts";
 
 export default function Home() {
+  /* 
+  // Temporary sample data until real DB/API is connected
+  const sampleProducts = [
+  {
+    id: "1",
+    name: "Handmade Mug",
+    price: 24.99,
+    image:"https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=900&q=60"
+  },
+  {
+    id: "2",
+    name: "Woven Basket",
+    price: 39.99,
+    image: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=900&q=60"
+  },
+  {
+    id: "3",
+    name: "Wooden Spoon Set",
+    price: 18.5,
+    image:"https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=900&q=60"
+  }
+]; */
+
+
+  const sampleProducts = [
+  {
+      id: "1",
+      name: "Handcrafted Ceramic Bowl Set",
+      description: "Beautiful set of three nesting bowls, perfect for serving or display.",
+      price: 89.99,
+      rating: 4.9,
+      reviews: 42,
+      seller: "Emma Chen",
+      image: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=900&q=60"
+    },
+    {
+      id: "2",
+      name: "Artisan Gold Necklace",
+      description: "Elegant handcrafted necklace featuring ethically sourced materials.",
+      price: 124.5,
+      rating: 4.8,
+      reviews: 36,
+      seller: "Marcus Rodriguez",
+      image: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=900&q=60"
+    },
+    {
+      id: "3",
+      name: "Handwoven Textile Wall Art",
+      description: "Stunning wall hanging created using traditional weaving techniques.",
+      price: 156.0,
+      rating: 5.0,
+      reviews: 28,
+      seller: "Sarah Woodland",
+      featured: true,
+      image: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=900&q=60"
+    },
+  ];
+  
+  
+  
+  
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src='/next.svg'
-          alt='Next.js logo'
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{' '}
-            <a
-              href='https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app'
-              target='_blank'
-              rel='noopener noreferrer'
-            >
-              Templates
-            </a>{' '}
-            or the{' '}
-            <a
-              href='https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app'
-              target='_blank'
-              rel='noopener noreferrer'
-            >
-              Learning
-            </a>{' '}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href='https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app'
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            <Image
-              className={styles.logo}
-              src='/vercel.svg'
-              alt='Vercel logomark'
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href='https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app'
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <section className='space-y-3'>
+      <h1 className='text-3xl font-semibold tracking-tight'>Landing Page</h1>
+      <p className='text-slate-600'>
+        Base shell is ready. Next step is building real Header and Footer components.
+      </p>
+   
+   <FeaturedProducts products={sampleProducts} />
+    </section>
   );
 }

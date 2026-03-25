@@ -829,7 +829,7 @@ export default function ProfilePage() {
                               key={product.id}
                               className='rounded-lg border border-border bg-background p-4'
                             >
-                              <div className='flex items-start justify-between gap-4'>
+                              <div className='grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto_auto]'>
                                 <div className='space-y-1'>
                                   <p className='font-semibold'>{product.name}</p>
                                   <p className='text-sm text-muted-foreground'>

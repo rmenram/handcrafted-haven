@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { verifyAuthToken } from '@/lib/auth';
 import { connectToDatabase } from '@/lib/mongodb';
+import { getReviewStatsByProductId } from '@/lib/reviewStats';
 import Product from '@/models/Product';
 
 const updateFeaturedSchema = z.object({
@@ -39,6 +40,10 @@ export async function GET() {
       .limit(100)
       .lean();
 
+    const reviewStatsById = await getReviewStatsByProductId(
+      products.map((product) => String(product._id))
+    );
+
     return NextResponse.json({
       products: products.map((product) => ({
         id: String(product._id),
@@ -49,8 +54,10 @@ export async function GET() {
         image: product.image,
         price: product.price,
         inStock: product.inStock,
-        rating: Number(product.rating ?? 0),
-        reviewCount: Number(product.reviewCount ?? 0),
+        rating: Number(reviewStatsById.get(String(product._id))?.rating ?? product.rating ?? 0),
+        reviewCount: Number(
+          reviewStatsById.get(String(product._id))?.reviewCount ?? product.reviewCount ?? 0
+        ),
         featured: Boolean(product.featured),
       })),
     });

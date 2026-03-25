@@ -14,6 +14,7 @@ type CategoryProductViewModel = {
   image: string;
   price: number;
   artisanName: string;
+  inStock: boolean;
 };
 
 async function getProductsForCategory(categoryName: string): Promise<CategoryProductViewModel[]> {
@@ -24,7 +25,6 @@ async function getProductsForCategory(categoryName: string): Promise<CategoryPro
 
     const products = await Product.find({
       category: new RegExp(`^${escapedCategory}$`, 'i'),
-      inStock: true,
     })
       .sort({ updatedAt: -1, createdAt: -1 })
       .limit(24)
@@ -36,6 +36,7 @@ async function getProductsForCategory(categoryName: string): Promise<CategoryPro
       image: product.image,
       price: Number(product.price ?? 0),
       artisanName: product.artisanName,
+      inStock: Boolean(product.inStock),
     }));
   } catch {
     return [];
@@ -56,23 +57,30 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
 
       {products.length === 0 ? (
         <p className='rounded-lg border bg-white p-6 text-slate-600'>
-          No in-stock products found in this category right now.
+          No products found in this category right now.
         </p>
       ) : (
         <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
           {products.map((product) => (
             <article
               key={product.id}
-              className='overflow-hidden rounded-xl border bg-white shadow-sm'
+              className={`overflow-hidden rounded-xl border bg-white shadow-sm transition-opacity ${
+                product.inStock ? '' : 'opacity-75'
+              }`}
             >
               <div className='relative aspect-[4/3]'>
                 <Image
                   src={product.image || '/images/home-decor.webp'}
                   alt={product.name}
                   fill
-                  className='object-cover'
+                  className={`object-cover ${product.inStock ? '' : 'grayscale'}`}
                   sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
                 />
+                {!product.inStock && (
+                  <span className='absolute left-3 top-3 rounded-md bg-red-600 px-2 py-1 text-xs font-semibold text-white shadow'>
+                    Out of stock
+                  </span>
+                )}
               </div>
               <div className='space-y-2 p-4'>
                 <h2 className='text-lg font-semibold'>{product.name}</h2>

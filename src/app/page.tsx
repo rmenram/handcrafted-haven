@@ -1,6 +1,7 @@
 import FeaturedProducts from '@/components/home/FeaturedProducts';
 import { connectToDatabase } from '@/lib/mongodb';
 import Product from '@/models/Product';
+import BrowseByCategory from '@/components/home/BrowseByCategory';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,8 +40,42 @@ async function getFeaturedProducts(): Promise<FeaturedProductViewModel[]> {
   }
 }
 
+//Browse by category functions:
+type CategoryViewModel = {
+  name: string;
+  productCount: number;
+};
+
+async function getCategories(): Promise<CategoryViewModel[]> {
+  try {
+    await connectToDatabase();
+
+    const categories = await Product.aggregate([
+      {
+        $group: {
+          _id: '$category',
+          productCount: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          name: '$_id',
+          productCount: 1,
+          _id: 0,
+        },
+      },
+    ]);
+
+    return categories;
+  } catch {
+    return [];
+  }
+}
+
+
 export default async function Home() {
   const featuredProducts = await getFeaturedProducts();
+  const categories = await getCategories();
 
   return (
     <section className='space-y-8'>
@@ -52,6 +87,9 @@ export default async function Home() {
       </section>
 
       <FeaturedProducts products={featuredProducts} />
+
+      <BrowseByCategory categories={categories} />
+
     </section>
   );
 }

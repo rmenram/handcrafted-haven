@@ -42,13 +42,12 @@ const baseTabs: Array<{ key: TabKey; label: string; icon: typeof User }> = [
 ];
 
 const productCategories = [
-  'Kitchen',
   'Home Decor',
+  'Jewelry',
+  'Kitchen',
+  'Pottery & Ceramics',
   'Stationery',
-  'Accessories',
-  'Textiles',
-  'Art',
-  'Wellness',
+  'Textiles & Fabrics',
 ] as const;
 
 export default function ProfilePage() {

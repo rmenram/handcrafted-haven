@@ -6,12 +6,12 @@ export async function GET(req: Request) {
   try {
     await connectToDatabase();
 
-    const { searchParams } = new URL(req.url); //to generate the URL for categories Browse by category
-    const category = searchParams.get('category');
+    const { searchParams } = new URL(req.url);
+    const category = searchParams.get('category')?.trim();
 
-    const filter = category
-      ? { category: new RegExp(`^${category}$`, 'i') }
-      : {};
+    const escapedCategory = category ? category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : null;
+
+    const filter = escapedCategory ? { category: new RegExp(`^${escapedCategory}$`, 'i') } : {};
 
     const products = await Product.find(filter).sort({ createdAt: -1 }).limit(50).lean();
 

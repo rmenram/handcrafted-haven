@@ -46,6 +46,15 @@ type CategoryViewModel = {
   productCount: number;
 };
 
+const DEFAULT_CATEGORIES = [
+  'Home Decor',
+  'Jewelry',
+  'Kitchen',
+  'Pottery & Ceramics',
+  'Stationery',
+  'Textiles & Fabrics',
+];
+
 async function getCategories(): Promise<CategoryViewModel[]> {
   try {
     await connectToDatabase();
@@ -66,12 +75,36 @@ async function getCategories(): Promise<CategoryViewModel[]> {
       },
     ]);
 
-    return categories;
+    const mergedCounts = new Map<string, { name: string; productCount: number }>();
+
+    for (const category of DEFAULT_CATEGORIES) {
+      mergedCounts.set(category.toLowerCase(), { name: category, productCount: 0 });
+    }
+
+    for (const category of categories as Array<{ name?: string; productCount?: number }>) {
+      const rawName = String(category.name ?? '').trim();
+      if (!rawName) {
+        continue;
+      }
+
+      const key = rawName.toLowerCase();
+      const existing = mergedCounts.get(key);
+
+      mergedCounts.set(key, {
+        name: existing?.name ?? rawName,
+        productCount: Number(category.productCount ?? 0),
+      });
+    }
+
+    return Array.from(mergedCounts.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
   } catch {
-    return [];
+    return DEFAULT_CATEGORIES.map((name) => ({ name, productCount: 0 })).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
   }
 }
-
 
 export default async function Home() {
   const featuredProducts = await getFeaturedProducts();
@@ -89,7 +122,6 @@ export default async function Home() {
       <FeaturedProducts products={featuredProducts} />
 
       <BrowseByCategory categories={categories} />
-
     </section>
   );
 }

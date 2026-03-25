@@ -140,8 +140,8 @@ export default async function CategoriesPage() {
         <div className='mx-auto max-w-4xl space-y-8'>
           <h2 className='text-3xl font-semibold'>Why Choose Handcrafted?</h2>
           <p className='mx-auto max-w-2xl text-slate-600'>
-            Every handcrafted item tells a story. When you purchase from our artisans, you're not
-            just buying a product—you're supporting traditional craftsmanship, sustainable
+            Every handcrafted item tells a story. When you purchase from our artisans, you&apos;re not
+            just buying a product—you&apos;re supporting traditional craftsmanship, sustainable
             practices, and real people who pour their heart into their work.
           </p>
 

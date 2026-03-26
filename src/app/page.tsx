@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import Product from '@/models/Product';
 import BrowseByCategory from '@/components/home/BrowseByCategory';
 import CallToAction from '@/components/home/CallToAction';
+import FourTiles from '@/components/home/FourTiles';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,6 +120,8 @@ export default async function Home() {
           Base shell is ready. Next step is building real Header and Footer components.
         </p>
       </section>
+
+      <FourTiles />
 
       <FeaturedProducts products={featuredProducts} />
 

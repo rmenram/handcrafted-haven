@@ -9,6 +9,10 @@ const updateMeSchema = z.object({
   name: z.string().trim().min(2),
   email: z.email(),
   phone: z.string().trim().max(30).optional(),
+  profileImage: z.string().trim().url().or(z.literal('')).optional(),
+  location: z.string().trim().max(120).optional(),
+  bio: z.string().trim().max(400).optional(),
+  specialties: z.array(z.string().trim().min(1).max(40)).max(10).optional(),
 });
 
 export async function GET() {
@@ -28,7 +32,9 @@ export async function GET() {
 
   try {
     await connectToDatabase();
-    const user = await User.findById(payload.sub).select('_id name email role phone').lean();
+    const user = await User.findById(payload.sub)
+      .select('_id name email role phone profileImage location bio specialties memberSince artisanRating')
+      .lean();
 
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -41,6 +47,12 @@ export async function GET() {
         email: user.email,
         role: user.role,
         phone: user.phone ?? '',
+        profileImage: user.profileImage ?? '',
+        location: user.location ?? '',
+        bio: user.bio ?? '',
+        specialties: Array.isArray(user.specialties) ? user.specialties : [],
+        memberSince: user.memberSince ?? null,
+        artisanRating: Number(user.artisanRating ?? 0),
       },
     });
   } catch (error) {
@@ -88,11 +100,15 @@ export async function PATCH(request: Request) {
           name: parsed.data.name,
           email: parsed.data.email,
           phone: parsed.data.phone ?? '',
+          profileImage: parsed.data.profileImage ?? '',
+          location: parsed.data.location ?? '',
+          bio: parsed.data.bio ?? '',
+          specialties: parsed.data.specialties ?? [],
         },
       },
       { new: true }
     )
-      .select('_id name email role phone')
+      .select('_id name email role phone profileImage location bio specialties memberSince artisanRating')
       .lean();
 
     if (!updatedUser) {
@@ -106,6 +122,12 @@ export async function PATCH(request: Request) {
         email: updatedUser.email,
         role: updatedUser.role,
         phone: updatedUser.phone ?? '',
+        profileImage: updatedUser.profileImage ?? '',
+        location: updatedUser.location ?? '',
+        bio: updatedUser.bio ?? '',
+        specialties: Array.isArray(updatedUser.specialties) ? updatedUser.specialties : [],
+        memberSince: updatedUser.memberSince ?? null,
+        artisanRating: Number(updatedUser.artisanRating ?? 0),
       },
     });
   } catch {

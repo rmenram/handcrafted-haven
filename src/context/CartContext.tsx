@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { createContext, useContext, useMemo, useState } from 'react';
 
 type Product = {
@@ -17,6 +18,8 @@ type CartItem = {
 
 type CartContextType = {
   cartItems: CartItem[];
+  isCartEnabled: boolean;
+  userRole: 'purchaser' | 'artisan' | 'admin' | null;
   removeFromCart: (productId: number) => void;
   updateQuantity: (productId: number, nextQuantity: number) => void;
   clearCart: () => void;
@@ -24,38 +27,68 @@ type CartContextType = {
   getCartItemsCount: () => number;
 };
 
-const initialCartItems: CartItem[] = [
-  {
-    product: {
-      id: 1,
-      name: 'Hand-thrown Ceramic Mug',
-      artisanName: 'Elena Pottery Studio',
-      price: 24,
-    },
-    quantity: 2,
-    customization: 'Matte glaze with initials',
-  },
-  {
-    product: {
-      id: 2,
-      name: 'Woven Wall Hanging',
-      artisanName: 'Thread & Loom',
-      price: 49,
-    },
-    quantity: 1,
-  },
-];
-
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [cartItems, setCartItems] = useState<CartItem[]>(initialCartItems);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [userRole, setUserRole] = useState<'purchaser' | 'artisan' | 'admin' | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadUserRole() {
+      try {
+        const response = await fetch('/api/users/me', { cache: 'no-store' });
+
+        if (!isMounted || !response.ok) {
+          if (isMounted) {
+            setUserRole(null);
+          }
+          return;
+        }
+
+        const data = (await response.json()) as {
+          user?: { role?: 'purchaser' | 'artisan' | 'admin' };
+        };
+
+        if (!isMounted) {
+          return;
+        }
+
+        setUserRole(data.user?.role ?? null);
+      } catch {
+        if (isMounted) {
+          setUserRole(null);
+        }
+      }
+    }
+
+    loadUserRole();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const isCartEnabled = userRole === 'purchaser';
+  const effectiveCartItems = useMemo(
+    () => (isCartEnabled ? cartItems : []),
+    [cartItems, isCartEnabled]
+  );
 
   const removeFromCart = (productId: number) => {
+    if (!isCartEnabled) {
+      return;
+    }
+
     setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
   };
 
   const updateQuantity = (productId: number, nextQuantity: number) => {
+    if (!isCartEnabled) {
+      return;
+    }
+
     if (nextQuantity < 1) {
       removeFromCart(productId);
       return;
@@ -69,27 +102,36 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const clearCart = () => {
+    if (!isCartEnabled) {
+      return;
+    }
+
     setCartItems([]);
   };
 
   const totals = useMemo(() => {
-    const total = cartItems.reduce(
+    const total = effectiveCartItems.reduce(
       (runningTotal, item) => runningTotal + item.product.price * item.quantity,
       0
     );
-    const count = cartItems.reduce((runningCount, item) => runningCount + item.quantity, 0);
+    const count = effectiveCartItems.reduce(
+      (runningCount, item) => runningCount + item.quantity,
+      0
+    );
     return { total, count };
-  }, [cartItems]);
+  }, [effectiveCartItems]);
 
   return (
     <CartContext.Provider
       value={{
-        cartItems,
+        cartItems: effectiveCartItems,
+        isCartEnabled,
+        userRole,
         removeFromCart,
         updateQuantity,
         clearCart,
-        getCartTotal: () => totals.total,
-        getCartItemsCount: () => totals.count,
+        getCartTotal: () => (isCartEnabled ? totals.total : 0),
+        getCartItemsCount: () => (isCartEnabled ? totals.count : 0),
       }}
     >
       {children}

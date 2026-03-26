@@ -44,7 +44,9 @@ export async function GET() {
     await connectToDatabase();
 
     const users = await User.find({})
-      .select('_id name email role phone profileImage location bio specialties memberSince artisanRating createdAt')
+      .select(
+        '_id name email role phone profileImage location bio specialties memberSince artisanRating createdAt'
+      )
       .sort({ role: 1, name: 1 })
       .lean();
 
@@ -104,18 +106,22 @@ export async function PATCH(request: Request) {
     if (typeof parsed.data.email === 'string') updateSet.email = parsed.data.email;
     if (typeof parsed.data.phone === 'string') updateSet.phone = parsed.data.phone;
     if (typeof parsed.data.role === 'string') updateSet.role = parsed.data.role;
-    if (typeof parsed.data.profileImage === 'string') updateSet.profileImage = parsed.data.profileImage;
+    if (typeof parsed.data.profileImage === 'string')
+      updateSet.profileImage = parsed.data.profileImage;
     if (typeof parsed.data.location === 'string') updateSet.location = parsed.data.location;
     if (typeof parsed.data.bio === 'string') updateSet.bio = parsed.data.bio;
     if (Array.isArray(parsed.data.specialties)) updateSet.specialties = parsed.data.specialties;
-    if (typeof parsed.data.artisanRating === 'number') updateSet.artisanRating = parsed.data.artisanRating;
+    if (typeof parsed.data.artisanRating === 'number')
+      updateSet.artisanRating = parsed.data.artisanRating;
 
     const updatedUser = await User.findByIdAndUpdate(
       parsed.data.userId,
       { $set: updateSet },
       { new: true }
     )
-      .select('_id name email role phone profileImage location bio specialties memberSince artisanRating createdAt')
+      .select(
+        '_id name email role phone profileImage location bio specialties memberSince artisanRating createdAt'
+      )
       .lean();
 
     if (!updatedUser) {

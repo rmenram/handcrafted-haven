@@ -1,17 +1,25 @@
-
 import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
+import { connectToDatabase } from '@/lib/mongodb';
+import Product from '@/models/Product';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const client = await clientPromise;
-    const db = client.db(); // Use the default database specified in the connection string
+    await connectToDatabase();
 
-    const products = await db.collection('products').find({}).toArray();
+    const { searchParams } = new URL(req.url);
+    const category = searchParams.get('category')?.trim();
 
-    return NextResponse.json(products);
-  } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: 'Unable to fetch products' }, { status: 500 });
+    const escapedCategory = category ? category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : null;
+
+    const filter = escapedCategory ? { category: new RegExp(`^${escapedCategory}$`, 'i') } : {};
+
+    const products = await Product.find(filter).sort({ createdAt: -1 }).limit(50).lean();
+
+    return NextResponse.json({ products });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : 'Failed to fetch products' },
+      { status: 500 }
+    );
   }
 }

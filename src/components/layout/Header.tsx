@@ -18,7 +18,7 @@ export default function Header() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { getCartItemsCount } = useCart();
+  const { getCartItemsCount, isCartEnabled } = useCart();
   const cartItemsCount = getCartItemsCount();
 
   const navLinkClasses = (href: string) => {
@@ -71,18 +71,28 @@ export default function Header() {
               <Heart className='h-5 w-5' />
             </Link>
 
-            <Link
-              href='/cart'
-              className='relative inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
-              aria-label='Shopping cart'
-            >
-              <ShoppingCart className='h-5 w-5' />
-              {cartItemsCount > 0 && (
-                <span className='absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-xs font-medium text-white'>
-                  {cartItemsCount}
-                </span>
-              )}
-            </Link>
+            {isCartEnabled ? (
+              <Link
+                href='/cart'
+                className='relative inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
+                aria-label='Shopping cart'
+              >
+                <ShoppingCart className='h-5 w-5' />
+                {cartItemsCount > 0 && (
+                  <span className='absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-xs font-medium text-white'>
+                    {cartItemsCount}
+                  </span>
+                )}
+              </Link>
+            ) : (
+              <span
+                className='inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground/50'
+                aria-label='Cart available to purchaser accounts only'
+                title='Cart is only available for purchaser accounts.'
+              >
+                <ShoppingCart className='h-5 w-5' />
+              </span>
+            )}
 
             <Link
               href='/profile'

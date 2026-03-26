@@ -12,7 +12,9 @@ export default async function CartPage() {
       <div className='mx-auto w-full px-4 py-16'>
         <div className='mx-auto max-w-md space-y-6 rounded-lg border border-border bg-card p-8 text-center'>
           <h2 className='text-2xl font-bold'>Cart unavailable</h2>
-          <p className='text-muted-foreground'>Sign in as a purchaser to use the cart and checkout.</p>
+          <p className='text-muted-foreground'>
+            Sign in as a purchaser to use the cart and checkout.
+          </p>
           <div className='flex items-center justify-center gap-3'>
             <Link
               href='/login'

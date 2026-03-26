@@ -33,7 +33,9 @@ export async function GET() {
   try {
     await connectToDatabase();
     const user = await User.findById(payload.sub)
-      .select('_id name email role phone profileImage location bio specialties memberSince artisanRating')
+      .select(
+        '_id name email role phone profileImage location bio specialties memberSince artisanRating'
+      )
       .lean();
 
     if (!user) {
@@ -108,7 +110,9 @@ export async function PATCH(request: Request) {
       },
       { new: true }
     )
-      .select('_id name email role phone profileImage location bio specialties memberSince artisanRating')
+      .select(
+        '_id name email role phone profileImage location bio specialties memberSince artisanRating'
+      )
       .lean();
 
     if (!updatedUser) {

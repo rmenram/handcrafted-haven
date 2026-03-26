@@ -4,14 +4,7 @@ import Link from 'next/link';
 import { Heart, LogOut, Package, Settings, Tags, User, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-type TabKey =
-  | 'profile'
-  | 'orders'
-  | 'products'
-  | 'users'
-  | 'categories'
-  | 'wishlist'
-  | 'settings';
+type TabKey = 'profile' | 'orders' | 'products' | 'users' | 'categories' | 'wishlist' | 'settings';
 type AuthUser = {
   id: string;
   name: string;
@@ -1333,7 +1326,9 @@ export default function ProfilePage() {
                   />
                 </div>
 
-                {isLoadingAdminUsers && <p className='text-sm text-muted-foreground'>Loading users...</p>}
+                {isLoadingAdminUsers && (
+                  <p className='text-sm text-muted-foreground'>Loading users...</p>
+                )}
                 {!isLoadingAdminUsers && adminUsersError && (
                   <p className='text-sm text-destructive'>{adminUsersError}</p>
                 )}
@@ -1445,7 +1440,11 @@ export default function ProfilePage() {
                         id='targetCategory'
                         value={categoryTargetName}
                         onChange={(event) => setCategoryTargetName(event.target.value)}
-                        placeholder={categoryAction === 'rename' ? 'Enter new category name' : 'Enter replacement category'}
+                        placeholder={
+                          categoryAction === 'rename'
+                            ? 'Enter new category name'
+                            : 'Enter replacement category'
+                        }
                         className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
                       />
                     </div>

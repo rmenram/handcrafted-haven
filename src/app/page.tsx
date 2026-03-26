@@ -2,6 +2,7 @@ import FeaturedProducts from '@/components/home/FeaturedProducts';
 import { connectToDatabase } from '@/lib/mongodb';
 import Product from '@/models/Product';
 import BrowseByCategory from '@/components/home/BrowseByCategory';
+import CallToAction from '@/components/home/CallToAction';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,6 +123,8 @@ export default async function Home() {
       <FeaturedProducts products={featuredProducts} />
 
       <BrowseByCategory categories={categories} />
+
+      <CallToAction />
     </section>
   );
 }

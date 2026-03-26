@@ -2,6 +2,8 @@ import FeaturedProducts from '@/components/home/FeaturedProducts';
 import { connectToDatabase } from '@/lib/mongodb';
 import Product from '@/models/Product';
 import BrowseByCategory from '@/components/home/BrowseByCategory';
+import CallToAction from '@/components/home/CallToAction';
+import FourTiles from '@/components/home/FourTiles';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,9 +121,13 @@ export default async function Home() {
         </p>
       </section>
 
+      <FourTiles />
+
       <FeaturedProducts products={featuredProducts} />
 
       <BrowseByCategory categories={categories} />
+
+      <CallToAction />
     </section>
   );
 }

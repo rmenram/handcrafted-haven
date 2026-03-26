@@ -1,16 +1,29 @@
 'use client';
 
 import Link from 'next/link';
-import { Heart, LogOut, Package, Settings, User } from 'lucide-react';
+import { Heart, LogOut, Package, Settings, Tags, User, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-type TabKey = 'profile' | 'orders' | 'products' | 'wishlist' | 'settings';
+type TabKey =
+  | 'profile'
+  | 'orders'
+  | 'products'
+  | 'users'
+  | 'categories'
+  | 'wishlist'
+  | 'settings';
 type AuthUser = {
   id: string;
   name: string;
   email: string;
   role: 'purchaser' | 'artisan' | 'admin';
   phone?: string;
+  profileImage?: string;
+  location?: string;
+  bio?: string;
+  specialties?: string[];
+  memberSince?: string | null;
+  artisanRating?: number;
 };
 
 type OrderItem = {
@@ -33,6 +46,25 @@ type ArtisanProduct = {
   artisanName?: string;
   rating?: number;
   reviewCount?: number;
+};
+
+type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: 'purchaser' | 'artisan' | 'admin';
+  phone?: string;
+  profileImage?: string;
+  location?: string;
+  bio?: string;
+  specialties?: string[];
+  memberSince?: string | null;
+  artisanRating?: number;
+};
+
+type AdminCategory = {
+  name: string;
+  productCount: number;
 };
 
 const baseTabs: Array<{ key: TabKey; label: string; icon: typeof User }> = [
@@ -58,6 +90,7 @@ export default function ProfilePage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [profileImage, setProfileImage] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -80,6 +113,22 @@ export default function ProfilePage() {
   const [adminProductSearch, setAdminProductSearch] = useState('');
   const [adminCategoryFilter, setAdminCategoryFilter] = useState<string>('all');
   const [productSuccess, setProductSuccess] = useState<string | null>(null);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false);
+  const [adminUsersError, setAdminUsersError] = useState<string | null>(null);
+  const [adminUserSuccess, setAdminUserSuccess] = useState<string | null>(null);
+  const [adminUserSearch, setAdminUserSearch] = useState('');
+  const [adminCategories, setAdminCategories] = useState<AdminCategory[]>([]);
+  const [isLoadingAdminCategories, setIsLoadingAdminCategories] = useState(false);
+  const [adminCategoriesError, setAdminCategoriesError] = useState<string | null>(null);
+  const [adminCategorySuccess, setAdminCategorySuccess] = useState<string | null>(null);
+  const [categorySourceName, setCategorySourceName] = useState('');
+  const [categoryTargetName, setCategoryTargetName] = useState('');
+  const [categoryAction, setCategoryAction] = useState<'rename' | 'delete'>('rename');
+  const [isSavingCategoryAction, setIsSavingCategoryAction] = useState(false);
+  const [location, setLocation] = useState('');
+  const [bio, setBio] = useState('');
+  const [specialties, setSpecialties] = useState('');
 
   const filteredAdminProducts = useMemo(() => {
     const searchTerm = adminProductSearch.trim().toLowerCase();
@@ -100,6 +149,20 @@ export default function ProfilePage() {
       );
     });
   }, [products, adminCategoryFilter, adminProductSearch]);
+
+  const filteredAdminUsers = useMemo(() => {
+    const searchTerm = adminUserSearch.trim().toLowerCase();
+
+    if (!searchTerm) {
+      return adminUsers;
+    }
+
+    return adminUsers.filter((user) =>
+      [user.name, user.email, user.role, user.location]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(searchTerm))
+    );
+  }, [adminUsers, adminUserSearch]);
 
   useEffect(() => {
     let isMounted = true;
@@ -137,6 +200,10 @@ export default function ProfilePage() {
     setLastName(splitName.slice(1).join(' '));
     setEmail(authUser.email);
     setPhone(authUser.phone ?? '');
+    setProfileImage(authUser.profileImage ?? '');
+    setLocation(authUser.location ?? '');
+    setBio(authUser.bio ?? '');
+    setSpecialties((authUser.specialties ?? []).join(', '));
   }, [authUser]);
 
   useEffect(() => {
@@ -193,33 +260,76 @@ export default function ProfilePage() {
 
       if (currentUser.role === 'admin') {
         setIsLoadingProducts(true);
+        setIsLoadingAdminUsers(true);
+        setIsLoadingAdminCategories(true);
         setProductsError(null);
+        setAdminUsersError(null);
+        setAdminCategoriesError(null);
         setProductSuccess(null);
         try {
-          const response = await fetch('/api/products/featured', { cache: 'no-store' });
-          const data = (await response.json()) as {
+          const [productsResponse, usersResponse, categoriesResponse] = await Promise.all([
+            fetch('/api/products/featured', { cache: 'no-store' }),
+            fetch('/api/admin/users', { cache: 'no-store' }),
+            fetch('/api/admin/categories', { cache: 'no-store' }),
+          ]);
+
+          const productsData = (await productsResponse.json()) as {
             message?: string;
             products?: ArtisanProduct[];
           };
+          const usersData = (await usersResponse.json()) as {
+            message?: string;
+            users?: AdminUser[];
+          };
+          const categoriesData = (await categoriesResponse.json()) as {
+            message?: string;
+            categories?: AdminCategory[];
+          };
 
-          if (!response.ok) {
-            setProductsError(data.message ?? 'Unable to load products');
+          if (!productsResponse.ok) {
+            setProductsError(productsData.message ?? 'Unable to load products');
             setProducts([]);
             setSelectedFeaturedProductIds([]);
-            return;
           }
 
-          const loadedProducts = data.products ?? [];
+          if (!usersResponse.ok) {
+            setAdminUsersError(usersData.message ?? 'Unable to load users');
+            setAdminUsers([]);
+          }
+
+          if (!categoriesResponse.ok) {
+            setAdminCategoriesError(categoriesData.message ?? 'Unable to load categories');
+            setAdminCategories([]);
+          }
+
+          const loadedProducts = productsData.products ?? [];
           setProducts(loadedProducts);
           setSelectedFeaturedProductIds(
             loadedProducts.filter((product) => product.featured).map((product) => product.id)
           );
+
+          const loadedUsers = usersData.users ?? [];
+          setAdminUsers(loadedUsers);
+
+          const loadedCategories = categoriesData.categories ?? [];
+          setAdminCategories(loadedCategories);
+
+          if (loadedCategories.length > 0) {
+            setCategorySourceName((current) => current || loadedCategories[0].name);
+            setCategoryTargetName((current) => current || loadedCategories[0].name);
+          }
         } catch {
           setProductsError('Unable to connect. Please try again.');
+          setAdminUsersError('Unable to connect. Please try again.');
+          setAdminCategoriesError('Unable to connect. Please try again.');
           setProducts([]);
+          setAdminUsers([]);
+          setAdminCategories([]);
           setSelectedFeaturedProductIds([]);
         } finally {
           setIsLoadingProducts(false);
+          setIsLoadingAdminUsers(false);
+          setIsLoadingAdminCategories(false);
         }
       }
     }
@@ -252,6 +362,13 @@ export default function ProfilePage() {
           name: fullName,
           email: email.trim(),
           phone: phone.trim(),
+          profileImage: profileImage.trim(),
+          location: location.trim(),
+          bio: bio.trim(),
+          specialties: specialties
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean),
         }),
       });
 
@@ -398,6 +515,91 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleUpdateAdminUserRole(userId: string, role: AuthUser['role']) {
+    setAdminUsersError(null);
+    setAdminUserSuccess(null);
+
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role }),
+      });
+
+      const data = (await response.json()) as { message?: string; user?: AdminUser };
+
+      if (!response.ok || !data.user) {
+        setAdminUsersError(data.message ?? 'Unable to update user');
+        return;
+      }
+
+      setAdminUsers((prev) => prev.map((user) => (user.id === userId ? data.user! : user)));
+      setAdminUserSuccess('User updated successfully.');
+    } catch {
+      setAdminUsersError('Unable to connect. Please try again.');
+    }
+  }
+
+  async function handleSaveCategoryAction() {
+    setAdminCategoriesError(null);
+    setAdminCategorySuccess(null);
+
+    if (!categorySourceName.trim() || !categoryTargetName.trim()) {
+      setAdminCategoriesError('Source and target category names are required.');
+      return;
+    }
+
+    if (categoryAction === 'rename' && categorySourceName.trim() === categoryTargetName.trim()) {
+      setAdminCategoriesError('Choose a different target name when renaming a category.');
+      return;
+    }
+
+    setIsSavingCategoryAction(true);
+
+    try {
+      const payload =
+        categoryAction === 'rename'
+          ? {
+              action: 'rename',
+              oldName: categorySourceName.trim(),
+              newName: categoryTargetName.trim(),
+            }
+          : {
+              action: 'delete',
+              name: categorySourceName.trim(),
+              replacementName: categoryTargetName.trim(),
+            };
+
+      const response = await fetch('/api/admin/categories', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = (await response.json()) as {
+        message?: string;
+        categories?: AdminCategory[];
+      };
+
+      if (!response.ok || !data.categories) {
+        setAdminCategoriesError(data.message ?? 'Unable to update categories');
+        return;
+      }
+
+      setAdminCategories(data.categories);
+      setProductSuccess(
+        categoryAction === 'rename'
+          ? 'Category renamed. Product categories were updated.'
+          : 'Category reassigned. Products moved to replacement category.'
+      );
+      setAdminCategorySuccess('Categories updated successfully.');
+    } catch {
+      setAdminCategoriesError('Unable to connect. Please try again.');
+    } finally {
+      setIsSavingCategoryAction(false);
+    }
+  }
+
   const userRole = authUser?.role;
 
   const tabs: Array<{ key: TabKey; label: string; icon: typeof User }> =
@@ -412,7 +614,8 @@ export default function ProfilePage() {
         ? [
             baseTabs[0],
             { key: 'products', label: 'Products', icon: Package },
-            baseTabs[1],
+            { key: 'users', label: 'Users', icon: Users },
+            { key: 'categories', label: 'Categories', icon: Tags },
             baseTabs[2],
           ]
         : [
@@ -470,9 +673,18 @@ export default function ProfilePage() {
       <div className='mx-auto max-w-4xl'>
         <div className='mb-8 flex items-center justify-between gap-4'>
           <div className='flex items-center space-x-4'>
-            <div className='inline-flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-3xl font-semibold text-amber-700'>
-              {authUser.name.charAt(0).toUpperCase()}
-            </div>
+            {profileImage ? (
+              <div
+                className='h-20 w-20 rounded-full border border-border bg-cover bg-center'
+                style={{ backgroundImage: `url(${profileImage})` }}
+                role='img'
+                aria-label={`${authUser.name} profile picture`}
+              />
+            ) : (
+              <div className='inline-flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-3xl font-semibold text-amber-700'>
+                {authUser.name.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div>
               <h1 className='text-3xl font-bold'>{authUser.name}</h1>
               <p className='text-muted-foreground'>{authUser.email}</p>
@@ -494,7 +706,12 @@ export default function ProfilePage() {
         </div>
 
         <div className='space-y-6'>
-          <div className='grid w-full grid-cols-2 gap-2 rounded-lg border border-border bg-muted/40 p-2 sm:grid-cols-4'>
+          <div
+            className={[
+              'grid w-full grid-cols-2 gap-2 rounded-lg border border-border bg-muted/40 p-2',
+              tabs.length >= 5 ? 'sm:grid-cols-5' : 'sm:grid-cols-4',
+            ].join(' ')}
+          >
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -569,6 +786,61 @@ export default function ProfilePage() {
                     value={phone}
                     onChange={(event) => setPhone(event.target.value)}
                     className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                  />
+                </div>
+
+                <div className='space-y-2'>
+                  <label htmlFor='profileImage' className='text-sm font-medium'>
+                    Profile Picture URL
+                  </label>
+                  <input
+                    id='profileImage'
+                    type='url'
+                    placeholder='https://example.com/photo.jpg'
+                    value={profileImage}
+                    onChange={(event) => setProfileImage(event.target.value)}
+                    className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                  />
+                </div>
+
+                <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                  <div className='space-y-2'>
+                    <label htmlFor='location' className='text-sm font-medium'>
+                      Location
+                    </label>
+                    <input
+                      id='location'
+                      placeholder='Provo, UT'
+                      value={location}
+                      onChange={(event) => setLocation(event.target.value)}
+                      className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <label htmlFor='specialties' className='text-sm font-medium'>
+                      Specialties (comma separated)
+                    </label>
+                    <input
+                      id='specialties'
+                      placeholder='Ceramics, Textiles, Home Decor'
+                      value={specialties}
+                      onChange={(event) => setSpecialties(event.target.value)}
+                      className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                    />
+                  </div>
+                </div>
+
+                <div className='space-y-2'>
+                  <label htmlFor='bio' className='text-sm font-medium'>
+                    Bio
+                  </label>
+                  <textarea
+                    id='bio'
+                    rows={4}
+                    placeholder='Share a short story about your craft.'
+                    value={bio}
+                    onChange={(event) => setBio(event.target.value)}
+                    className='w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
                   />
                 </div>
 
@@ -1039,7 +1311,188 @@ export default function ProfilePage() {
               </section>
             )}
 
-          {activeTab === 'wishlist' && (
+          {activeTab === 'users' && authUser.role === 'admin' && (
+            <section className='rounded-lg border border-border bg-card'>
+              <header className='space-y-1 border-b border-border p-6'>
+                <h2 className='text-xl font-bold'>User Management</h2>
+                <p className='text-sm text-muted-foreground'>
+                  Update account roles and review artisan profile metadata.
+                </p>
+              </header>
+              <div className='space-y-4 p-6'>
+                <div className='space-y-2'>
+                  <label htmlFor='adminUserSearch' className='text-sm font-medium'>
+                    Search users
+                  </label>
+                  <input
+                    id='adminUserSearch'
+                    value={adminUserSearch}
+                    onChange={(event) => setAdminUserSearch(event.target.value)}
+                    placeholder='Search by name, email, role, location...'
+                    className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                  />
+                </div>
+
+                {isLoadingAdminUsers && <p className='text-sm text-muted-foreground'>Loading users...</p>}
+                {!isLoadingAdminUsers && adminUsersError && (
+                  <p className='text-sm text-destructive'>{adminUsersError}</p>
+                )}
+                {adminUserSuccess && <p className='text-sm text-green-600'>{adminUserSuccess}</p>}
+
+                {!isLoadingAdminUsers &&
+                  !adminUsersError &&
+                  filteredAdminUsers.map((user) => (
+                    <article
+                      key={user.id}
+                      className='rounded-lg border border-border bg-background p-4'
+                    >
+                      <div className='grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]'>
+                        <div className='space-y-1'>
+                          <p className='font-semibold'>{user.name}</p>
+                          <p className='text-sm text-muted-foreground'>{user.email}</p>
+                          <p className='text-sm text-muted-foreground'>
+                            {user.location || 'No location'}
+                            {typeof user.artisanRating === 'number' &&
+                              user.artisanRating > 0 &&
+                              ` • Rating ${user.artisanRating.toFixed(1)}`}
+                          </p>
+                          {Array.isArray(user.specialties) && user.specialties.length > 0 && (
+                            <p className='text-xs text-muted-foreground'>
+                              Specialties: {user.specialties.join(', ')}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className='space-y-2'>
+                          <label
+                            htmlFor={`role-${user.id}`}
+                            className='text-xs font-medium uppercase tracking-wide text-muted-foreground'
+                          >
+                            Role
+                          </label>
+                          <select
+                            id={`role-${user.id}`}
+                            value={user.role}
+                            onChange={(event) =>
+                              handleUpdateAdminUserRole(
+                                user.id,
+                                event.target.value as AuthUser['role']
+                              )
+                            }
+                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                          >
+                            <option value='purchaser'>Purchaser</option>
+                            <option value='artisan'>Artisan</option>
+                            <option value='admin'>Admin</option>
+                          </select>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'categories' && authUser.role === 'admin' && (
+            <section className='rounded-lg border border-border bg-card'>
+              <header className='space-y-1 border-b border-border p-6'>
+                <h2 className='text-xl font-bold'>Category Management</h2>
+                <p className='text-sm text-muted-foreground'>
+                  Rename categories or reassign products from one category to another.
+                </p>
+              </header>
+              <div className='space-y-6 p-6'>
+                <div className='space-y-4 rounded-lg border border-border bg-background p-4'>
+                  <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+                    <div className='space-y-2'>
+                      <label htmlFor='categoryAction' className='text-sm font-medium'>
+                        Action
+                      </label>
+                      <select
+                        id='categoryAction'
+                        value={categoryAction}
+                        onChange={(event) =>
+                          setCategoryAction(event.target.value as 'rename' | 'delete')
+                        }
+                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                      >
+                        <option value='rename'>Rename Category</option>
+                        <option value='delete'>Reassign and Remove Category</option>
+                      </select>
+                    </div>
+                    <div className='space-y-2'>
+                      <label htmlFor='sourceCategory' className='text-sm font-medium'>
+                        Source Category
+                      </label>
+                      <select
+                        id='sourceCategory'
+                        value={categorySourceName}
+                        onChange={(event) => setCategorySourceName(event.target.value)}
+                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                      >
+                        {adminCategories.map((category) => (
+                          <option key={category.name} value={category.name}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className='space-y-2'>
+                      <label htmlFor='targetCategory' className='text-sm font-medium'>
+                        {categoryAction === 'rename' ? 'New Name' : 'Replacement Category'}
+                      </label>
+                      <input
+                        id='targetCategory'
+                        value={categoryTargetName}
+                        onChange={(event) => setCategoryTargetName(event.target.value)}
+                        placeholder={categoryAction === 'rename' ? 'Enter new category name' : 'Enter replacement category'}
+                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                      />
+                    </div>
+                  </div>
+
+                  <div className='flex items-center gap-3'>
+                    <button
+                      type='button'
+                      onClick={handleSaveCategoryAction}
+                      disabled={isSavingCategoryAction || adminCategories.length === 0}
+                      className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-60'
+                    >
+                      {isSavingCategoryAction ? 'Saving...' : 'Apply Category Change'}
+                    </button>
+                  </div>
+
+                  {adminCategoriesError && (
+                    <p className='text-sm text-destructive'>{adminCategoriesError}</p>
+                  )}
+                  {adminCategorySuccess && (
+                    <p className='text-sm text-green-600'>{adminCategorySuccess}</p>
+                  )}
+                </div>
+
+                <div className='space-y-3'>
+                  <h3 className='font-semibold'>Current Categories</h3>
+                  {isLoadingAdminCategories && (
+                    <p className='text-sm text-muted-foreground'>Loading categories...</p>
+                  )}
+                  {!isLoadingAdminCategories &&
+                    adminCategories.map((category) => (
+                      <div
+                        key={category.name}
+                        className='flex items-center justify-between rounded-lg border border-border bg-background p-3'
+                      >
+                        <span className='font-medium'>{category.name}</span>
+                        <span className='text-sm text-muted-foreground'>
+                          {category.productCount} products
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'wishlist' && authUser.role !== 'admin' && (
             <section className='rounded-lg border border-border bg-card'>
               <header className='space-y-1 border-b border-border p-6'>
                 <h2 className='text-xl font-bold'>Wishlist</h2>

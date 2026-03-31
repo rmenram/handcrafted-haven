@@ -18,7 +18,7 @@ export default function Footer() {
             <h3 className='mb-4 font-semibold text-foreground'>Quick Links</h3>
             <ul className='space-y-2 text-sm'>
               <li>
-                <Link href='/products' className='text-muted-foreground hover:text-amber-600'>
+                <Link href='/shop' className='text-muted-foreground hover:text-amber-600'>
                   Shop All Products
                 </Link>
               </li>

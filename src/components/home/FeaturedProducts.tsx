@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { ShoppingCart, Star } from 'lucide-react';
 
 type Product = {
@@ -18,13 +19,21 @@ type FeaturedProductsProps = {
 
 export default function FeaturedProducts({ products = [] }: FeaturedProductsProps) {
   return (
-    <section className='py-16'>
+    <section className='py-2'>
       <div className='mx-auto max-w-6xl space-y-8 px-4'>
-        <header className='space-y-2'>
-          <h2 className='text-3xl font-semibold tracking-tight'>Featured Products</h2>
-          <p className='text-slate-600'>
-            A curated selection of handcrafted items made with care and creativity.
-          </p>
+        <header className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div className='space-y-2'>
+            <h2 className='text-3xl font-semibold tracking-tight'>Featured Products</h2>
+            <p className='text-slate-600'>
+              A curated selection of handcrafted items made with care and creativity.
+            </p>
+          </div>
+          <Link
+            href='/shop'
+            className='inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-100'
+          >
+            View all
+          </Link>
         </header>
 
         {products.length === 0 ? (

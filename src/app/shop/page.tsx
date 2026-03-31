@@ -20,7 +20,7 @@ export default function ShopPage() {
                     throw new Error("Failed to fetch products");
                 }
                 const data = await res.json();
-                setProductsData(data);
+                setProductsData(data.products || []);
             } catch (err) {
                 setError(err instanceof Error ? err.message : "An unknown error occurred");
             } finally {
@@ -67,7 +67,7 @@ export default function ShopPage() {
                 ) : products.length === 0 ? (
                     <p className="empty-state">No products found in this category.</p>
                 ) : (
-                    products.map((product) => <ProductCard key={product.id} product={product} />)
+                    products.map((product) => <ProductCard key={product._id} product={product} />)
                 )}
             </section>
         </main >

@@ -43,5 +43,3 @@ export async function connectToDatabase() {
   cache.conn = await cache.promise;
   return cache.conn;
 }
-
-export default connectToDatabase;

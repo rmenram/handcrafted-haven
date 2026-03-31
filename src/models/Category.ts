@@ -9,12 +9,11 @@ const categorySchema = new Schema(
   { timestamps: true }
 );
 
-categorySchema.pre('validate', function normalizeName(next) {
+categorySchema.pre('validate', function normalizeName() {
   if (typeof this.name === 'string') {
     this.name = this.name.trim();
     this.lowerName = this.name.toLowerCase();
   }
-  next();
 });
 
 export type CategoryDocument = InferSchemaType<typeof categorySchema>;

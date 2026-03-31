@@ -32,7 +32,7 @@ export default function FeaturedProducts({ products = [] }: FeaturedProductsProp
             href='/shop'
             className='inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-100'
           >
-            View all
+            View all products
           </Link>
         </header>
 

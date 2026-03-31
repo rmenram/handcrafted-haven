@@ -42,6 +42,8 @@ export async function GET() {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
+    const isArtisan = user.role === 'artisan';
+
     return NextResponse.json({
       user: {
         id: String(user._id),
@@ -50,9 +52,9 @@ export async function GET() {
         role: user.role,
         phone: user.phone ?? '',
         profileImage: user.profileImage ?? '',
-        location: user.location ?? '',
-        bio: user.bio ?? '',
-        specialties: Array.isArray(user.specialties) ? user.specialties : [],
+        location: isArtisan ? (user.location ?? '') : '',
+        bio: isArtisan ? (user.bio ?? '') : '',
+        specialties: isArtisan && Array.isArray(user.specialties) ? user.specialties : [],
         memberSince: user.memberSince ?? null,
         artisanRating: Number(user.artisanRating ?? 0),
       },
@@ -95,6 +97,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ message: 'Email is already in use' }, { status: 409 });
     }
 
+    const existingUser = await User.findById(payload.sub).select('role').lean();
+    if (!existingUser) {
+      return NextResponse.json({ message: 'User not found' }, { status: 404 });
+    }
+
+    const isArtisan = existingUser.role === 'artisan';
+
     const updatedUser = await User.findByIdAndUpdate(
       payload.sub,
       {
@@ -103,9 +112,9 @@ export async function PATCH(request: Request) {
           email: parsed.data.email,
           phone: parsed.data.phone ?? '',
           profileImage: parsed.data.profileImage ?? '',
-          location: parsed.data.location ?? '',
-          bio: parsed.data.bio ?? '',
-          specialties: parsed.data.specialties ?? [],
+          location: isArtisan ? (parsed.data.location ?? '') : '',
+          bio: isArtisan ? (parsed.data.bio ?? '') : '',
+          specialties: isArtisan ? (parsed.data.specialties ?? []) : [],
         },
       },
       { new: true }
@@ -127,9 +136,10 @@ export async function PATCH(request: Request) {
         role: updatedUser.role,
         phone: updatedUser.phone ?? '',
         profileImage: updatedUser.profileImage ?? '',
-        location: updatedUser.location ?? '',
-        bio: updatedUser.bio ?? '',
-        specialties: Array.isArray(updatedUser.specialties) ? updatedUser.specialties : [],
+        location: isArtisan ? (updatedUser.location ?? '') : '',
+        bio: isArtisan ? (updatedUser.bio ?? '') : '',
+        specialties:
+          isArtisan && Array.isArray(updatedUser.specialties) ? updatedUser.specialties : [],
         memberSince: updatedUser.memberSince ?? null,
         artisanRating: Number(updatedUser.artisanRating ?? 0),
       },

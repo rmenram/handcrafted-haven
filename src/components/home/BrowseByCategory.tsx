@@ -4,6 +4,7 @@ import Image from 'next/image';
 type Category = {
   name: string;
   productCount: number;
+  image?: string;
 };
 
 const categoryImages: Record<string, string> = {
@@ -32,7 +33,7 @@ export default function BrowseByCategory({ categories }: { categories: Category[
           >
             <div className='aspect-[4/3] relative'>
               <Image
-                src={categoryImages[category.name] || '/images/home-decor.webp'}
+                src={category.image || categoryImages[category.name] || '/images/home-decor.webp'}
                 alt={category.name}
                 fill
                 className='object-cover group-hover:scale-110 transition duration-500'

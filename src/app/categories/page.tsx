@@ -2,6 +2,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { connectToDatabase } from '@/lib/mongodb';
 import Product from '@/models/Product';
+import Category from '@/models/Category';
+const TEMP_CATEGORY = 'Temp';
 
 const DEFAULT_CATEGORIES = [
   'Home Decor',
@@ -33,46 +35,71 @@ const categoryDescriptions: Record<string, string> = {
 type CategoryViewModel = {
   name: string;
   productCount: number;
+  image?: string;
 };
 
 async function getCategories(): Promise<CategoryViewModel[]> {
   try {
     await connectToDatabase();
 
-    const categories = await Product.aggregate([
+    const dbCategories = await Category.find({ lowerName: { $ne: TEMP_CATEGORY.toLowerCase() } })
+      .select('name lowerName image')
+      .lean();
+
+    const categories = await Product.aggregate<{
+      name: string;
+      lowerName: string;
+      productCount: number;
+    }>([
+      {
+        $match: {
+          category: { $not: new RegExp(`^${TEMP_CATEGORY}$`, 'i') },
+        },
+      },
       {
         $group: {
-          _id: '$category',
+          _id: { $toLower: { $trim: { input: '$category' } } },
+          name: { $first: '$category' },
           productCount: { $sum: 1 },
         },
       },
       {
         $project: {
-          name: '$_id',
+          lowerName: '$_id',
+          name: '$name',
           productCount: 1,
           _id: 0,
         },
       },
     ]);
 
-    const mergedCounts = new Map<string, { name: string; productCount: number }>();
+    const mergedCounts = new Map<string, { name: string; productCount: number; image: string }>();
 
     for (const category of DEFAULT_CATEGORIES) {
-      mergedCounts.set(category.toLowerCase(), { name: category, productCount: 0 });
+      mergedCounts.set(category.toLowerCase(), { name: category, productCount: 0, image: '' });
     }
 
-    for (const category of categories as Array<{ name?: string; productCount?: number }>) {
+    for (const category of dbCategories) {
+      mergedCounts.set(category.lowerName, {
+        name: category.name,
+        productCount: 0,
+        image: category.image ?? '',
+      });
+    }
+
+    for (const category of categories) {
       const rawName = String(category.name ?? '').trim();
-      if (!rawName) {
+      const lowerName = String(category.lowerName ?? '').trim();
+      if (!rawName || !lowerName || rawName.toLowerCase() === TEMP_CATEGORY.toLowerCase()) {
         continue;
       }
 
-      const key = rawName.toLowerCase();
-      const existing = mergedCounts.get(key);
+      const existing = mergedCounts.get(lowerName);
 
-      mergedCounts.set(key, {
+      mergedCounts.set(lowerName, {
         name: existing?.name ?? rawName,
         productCount: Number(category.productCount ?? 0),
+        image: existing?.image ?? '',
       });
     }
 
@@ -108,7 +135,7 @@ export default async function CategoriesPage() {
           >
             <div className='aspect-[4/3] relative'>
               <Image
-                src={categoryImages[category.name] || '/images/home-decor.webp'}
+                src={category.image || categoryImages[category.name] || '/images/home-decor.webp'}
                 alt={category.name}
                 fill
                 className='object-cover group-hover:scale-110 transition duration-500'

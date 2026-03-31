@@ -2,8 +2,23 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
-import { Heart, Menu, Search, ShoppingCart, User, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Heart,
+  Lock,
+  LogIn,
+  LogOut,
+  Menu,
+  Package,
+  Search,
+  Settings,
+  ShoppingCart,
+  Tags,
+  User,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 
 const navigation = [
@@ -14,12 +29,106 @@ const navigation = [
   { name: 'About', href: '/about' },
 ];
 
+type AuthUser = {
+  id: string;
+  role: 'purchaser' | 'artisan' | 'admin';
+};
+
+type MenuItem = {
+  label: string;
+  href: string;
+  icon: typeof User;
+};
+
 export default function Header() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const { getCartItemsCount, isCartEnabled } = useCart();
   const cartItemsCount = getCartItemsCount();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadUser() {
+      try {
+        const response = await fetch('/api/users/me', { cache: 'no-store' });
+
+        if (!isMounted) return;
+
+        if (!response.ok) {
+          setAuthUser(null);
+          return;
+        }
+
+        const data = (await response.json()) as { user?: AuthUser };
+        setAuthUser(data.user ?? null);
+      } catch {
+        if (isMounted) {
+          setAuthUser(null);
+        }
+      }
+    }
+
+    void loadUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!profileMenuRef.current) return;
+      if (profileMenuRef.current.contains(event.target as Node)) return;
+      setIsProfileMenuOpen(false);
+    }
+
+    if (isProfileMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileMenuOpen]);
+
+  const profileMenuItems = useMemo<MenuItem[]>(() => {
+    if (authUser?.role === 'admin') {
+      return [
+        { label: 'Profile', href: '/profile?tab=profile', icon: User },
+        { label: 'Products', href: '/profile?tab=products', icon: Package },
+        { label: 'Users', href: '/profile?tab=users', icon: Users },
+        { label: 'Categories', href: '/profile?tab=categories', icon: Tags },
+        { label: 'Settings', href: '/profile?tab=settings', icon: Settings },
+      ];
+    }
+
+    if (authUser?.role === 'artisan') {
+      return [
+        { label: 'Profile', href: '/profile?tab=profile', icon: User },
+        { label: 'Products', href: '/profile?tab=products', icon: Package },
+        { label: 'Settings', href: '/profile?tab=settings', icon: Settings },
+      ];
+    }
+
+    return [
+      { label: 'Profile', href: '/profile?tab=profile', icon: User },
+      { label: 'Orders', href: '/profile?tab=orders', icon: Package },
+      { label: 'Wishlist', href: '/profile?tab=wishlist', icon: Heart },
+      { label: 'Settings', href: '/profile?tab=settings', icon: Settings },
+    ];
+  }, [authUser?.role]);
+
+  async function handleProfileMenuLogout() {
+    await fetch('/api/users/logout', { method: 'POST' });
+    setAuthUser(null);
+    setIsProfileMenuOpen(false);
+    window.location.href = '/';
+  }
 
   const navLinkClasses = (href: string) => {
     const isActive = pathname === href;
@@ -63,13 +172,26 @@ export default function Header() {
               />
             </div>
 
-            <Link
-              href='/wishlist'
-              className='inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
-              aria-label='Wishlist'
-            >
-              <Heart className='h-5 w-5' />
-            </Link>
+            {isCartEnabled ? (
+              <Link
+                href='/wishlist'
+                className='inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
+                aria-label='Wishlist'
+              >
+                <Heart className='h-5 w-5' />
+              </Link>
+            ) : (
+              <span
+                className='relative inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground/50'
+                aria-label='Wishlist available to purchaser accounts only'
+                title='Wishlist is only available for purchaser accounts.'
+              >
+                <Heart className='h-5 w-5' />
+                <span className='absolute -bottom-0.5 -right-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-muted text-muted-foreground'>
+                  <Lock className='h-2.5 w-2.5' />
+                </span>
+              </span>
+            )}
 
             {isCartEnabled ? (
               <Link
@@ -86,21 +208,80 @@ export default function Header() {
               </Link>
             ) : (
               <span
-                className='inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground/50'
+                className='relative inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground/50'
                 aria-label='Cart available to purchaser accounts only'
                 title='Cart is only available for purchaser accounts.'
               >
                 <ShoppingCart className='h-5 w-5' />
+                <span className='absolute -bottom-0.5 -right-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-muted text-muted-foreground'>
+                  <Lock className='h-2.5 w-2.5' />
+                </span>
               </span>
             )}
 
-            <Link
-              href='/profile'
-              className='inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
-              aria-label='Account'
-            >
-              <User className='h-5 w-5' />
-            </Link>
+            <div className='relative' ref={profileMenuRef}>
+              <button
+                type='button'
+                className='inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
+                aria-label='Account menu'
+                aria-haspopup='menu'
+                aria-expanded={isProfileMenuOpen}
+                onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+              >
+                <User className='h-5 w-5' />
+              </button>
+
+              {isProfileMenuOpen && (
+                <div className='absolute right-0 top-12 z-50 w-56 rounded-lg border border-border bg-background p-1.5 shadow-lg'>
+                  {authUser ? (
+                    <>
+                      {profileMenuItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className='flex items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent'
+                            onClick={() => setIsProfileMenuOpen(false)}
+                          >
+                            <Icon className='h-4 w-4 text-muted-foreground' />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+
+                      <button
+                        type='button'
+                        onClick={handleProfileMenuLogout}
+                        className='mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent'
+                      >
+                        <LogOut className='h-4 w-4 text-muted-foreground' />
+                        Logout
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href='/login'
+                        className='flex items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent'
+                        onClick={() => setIsProfileMenuOpen(false)}
+                      >
+                        <LogIn className='h-4 w-4 text-muted-foreground' />
+                        Sign In
+                      </Link>
+                      <Link
+                        href='/signup'
+                        className='flex items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent'
+                        onClick={() => setIsProfileMenuOpen(false)}
+                      >
+                        <UserPlus className='h-4 w-4 text-muted-foreground' />
+                        Sign Up
+                      </Link>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
 
             <button
               type='button'

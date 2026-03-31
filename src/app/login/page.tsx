@@ -42,7 +42,7 @@ export default function LoginPage() {
   return (
     <div className='mx-auto flex min-h-[70vh] w-full max-w-md items-center px-4 py-10'>
       <div className='w-full rounded-lg border border-border bg-card p-6 shadow-sm'>
-        <h1 className='text-2xl font-semibold'>Sign in</h1>
+        <h1 className='text-2xl font-semibold'>Sign In</h1>
         <p className='mt-1 text-sm text-muted-foreground'>Welcome back to Handcrafted Haven.</p>
 
         <form onSubmit={onSubmit} className='mt-6 space-y-4'>
@@ -82,14 +82,14 @@ export default function LoginPage() {
             disabled={loading}
             className='inline-flex h-10 w-full items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60'
           >
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
         <p className='mt-4 text-sm text-muted-foreground'>
           Don&apos;t have an account?{' '}
           <Link href='/signup' className='font-medium text-amber-600 hover:underline'>
-            Sign up
+            Sign Up
           </Link>
         </p>
       </div>

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { verifyAuthToken } from '@/lib/auth';
 import { connectToDatabase } from '@/lib/mongodb';
 import Product from '@/models/Product';
+import Category from '@/models/Category';
 
 const DEFAULT_CATEGORIES = [
   'Home Decor',
@@ -13,18 +14,31 @@ const DEFAULT_CATEGORIES = [
   'Stationery',
   'Textiles & Fabrics',
 ];
+const TEMP_CATEGORY = 'Temp';
+const RESERVED_CATEGORY_NAMES = [...DEFAULT_CATEGORIES, TEMP_CATEGORY];
+const categoryImagePathSchema = z
+  .string()
+  .trim()
+  .regex(/^\/images\/[^/]+\.webp$/i, 'Image must be a .webp file in /images');
 
 const updateCategorySchema = z
   .object({
     action: z.literal('rename'),
     oldName: z.string().trim().min(2),
     newName: z.string().trim().min(2),
+    image: categoryImagePathSchema.optional(),
   })
+  .or(
+    z.object({
+      action: z.literal('add'),
+      name: z.string().trim().min(2),
+      image: categoryImagePathSchema,
+    })
+  )
   .or(
     z.object({
       action: z.literal('delete'),
       name: z.string().trim().min(2),
-      replacementName: z.string().trim().min(2),
     })
   );
 
@@ -45,46 +59,74 @@ async function requireAdminAuth() {
 }
 
 async function getCategoriesWithCounts() {
-  const categories = await Product.aggregate([
+  const categories = await Product.aggregate<{
+    name: string;
+    lowerName: string;
+    productCount: number;
+  }>([
     {
       $group: {
-        _id: '$category',
+        _id: { $toLower: { $trim: { input: '$category' } } },
+        name: { $first: '$category' },
         productCount: { $sum: 1 },
       },
     },
     {
       $project: {
-        name: '$_id',
+        lowerName: '$_id',
+        name: '$name',
         productCount: 1,
         _id: 0,
       },
     },
   ]);
 
-  const mergedCounts = new Map();
+  const mergedCounts = new Map<string, { name: string; productCount: number; image: string }>();
+  const persistedCategories = await Category.find({}).select('name lowerName image').lean();
 
-  for (const category of DEFAULT_CATEGORIES) {
-    mergedCounts.set(category.toLowerCase(), { name: category, productCount: 0 });
+  for (const category of persistedCategories) {
+    mergedCounts.set(category.lowerName, {
+      name: category.name,
+      productCount: 0,
+      image: category.image ?? '',
+    });
   }
 
   for (const category of categories) {
     const rawName = String(category.name ?? '').trim();
-    if (!rawName) {
+    const lowerName = String(category.lowerName ?? '').trim();
+    if (!rawName || !lowerName) {
       continue;
     }
 
-    const key = rawName.toLowerCase();
-    const existing = mergedCounts.get(key);
+    const existing = mergedCounts.get(lowerName);
 
-    mergedCounts.set(key, {
+    mergedCounts.set(lowerName, {
       name: existing?.name ?? rawName,
       productCount: Number(category.productCount ?? 0),
+      image: existing?.image ?? '',
     });
   }
 
   return Array.from(mergedCounts.values()).sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
   );
+}
+
+async function ensureReservedCategories() {
+  const operations = RESERVED_CATEGORY_NAMES.map((name) => ({
+    updateOne: {
+      filter: { lowerName: name.toLowerCase() },
+      update: { $setOnInsert: { name, lowerName: name.toLowerCase(), image: '' } },
+      upsert: true,
+    },
+  }));
+
+  await Category.bulkWrite(operations);
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export async function GET() {
@@ -95,6 +137,7 @@ export async function GET() {
     }
 
     await connectToDatabase();
+    await ensureReservedCategories();
     const categories = await getCategoriesWithCounts();
 
     return NextResponse.json({ categories });
@@ -118,26 +161,84 @@ export async function PATCH(request: Request) {
     }
 
     await connectToDatabase();
+    await ensureReservedCategories();
 
     if (parsed.data.action === 'rename') {
-      await Product.updateMany(
-        { category: parsed.data.oldName },
-        { $set: { category: parsed.data.newName } }
-      );
-    }
+      const oldName = parsed.data.oldName.trim();
+      const newName = parsed.data.newName.trim();
+      const oldLower = oldName.toLowerCase();
+      const newLower = newName.toLowerCase();
 
-    if (parsed.data.action === 'delete') {
-      if (parsed.data.name === parsed.data.replacementName) {
-        return NextResponse.json(
-          { message: 'Replacement category must be different' },
-          { status: 400 }
-        );
+      if (oldLower === TEMP_CATEGORY.toLowerCase()) {
+        return NextResponse.json({ message: 'Temp category cannot be renamed' }, { status: 400 });
+      }
+
+      if (oldLower === newLower) {
+        return NextResponse.json({ message: 'Choose a different target name' }, { status: 400 });
+      }
+
+      const sourceCategory = await Category.findOne({ lowerName: oldLower }).select('_id').lean();
+      if (!sourceCategory) {
+        return NextResponse.json({ message: 'Source category not found' }, { status: 404 });
+      }
+
+      const duplicateCategory = await Category.findOne({ lowerName: newLower })
+        .select('_id')
+        .lean();
+      if (duplicateCategory) {
+        return NextResponse.json({ message: 'Target category already exists' }, { status: 409 });
       }
 
       await Product.updateMany(
-        { category: parsed.data.name },
-        { $set: { category: parsed.data.replacementName } }
+        { category: new RegExp(`^${escapeRegExp(oldName)}$`, 'i') },
+        { $set: { category: newName } }
       );
+
+      await Category.updateOne(
+        { lowerName: oldLower },
+        {
+          $set: {
+            name: newName,
+            lowerName: newLower,
+            ...(typeof parsed.data.image === 'string' ? { image: parsed.data.image } : {}),
+          },
+        }
+      );
+    }
+
+    if (parsed.data.action === 'add') {
+      const name = parsed.data.name.trim();
+      const lowerName = name.toLowerCase();
+      const existingCategory = await Category.findOne({ lowerName }).select('_id').lean();
+
+      if (existingCategory) {
+        return NextResponse.json({ message: 'Category already exists' }, { status: 409 });
+      }
+
+      await Category.create({ name, lowerName, image: parsed.data.image ?? '' });
+    }
+
+    if (parsed.data.action === 'delete') {
+      const sourceName = parsed.data.name.trim();
+      const sourceLower = sourceName.toLowerCase();
+
+      if (sourceLower === TEMP_CATEGORY.toLowerCase()) {
+        return NextResponse.json({ message: 'Temp category cannot be deleted' }, { status: 400 });
+      }
+
+      const sourceCategory = await Category.findOne({ lowerName: sourceLower })
+        .select('_id')
+        .lean();
+      if (!sourceCategory) {
+        return NextResponse.json({ message: 'Category not found' }, { status: 404 });
+      }
+
+      await Product.updateMany(
+        { category: new RegExp(`^${escapeRegExp(sourceName)}$`, 'i') },
+        { $set: { category: TEMP_CATEGORY } }
+      );
+
+      await Category.deleteOne({ lowerName: sourceLower });
     }
 
     const categories = await getCategoriesWithCounts();

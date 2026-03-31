@@ -1,8 +1,10 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Heart, LogOut, Package, Settings, Tags, User, Users } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 type TabKey = 'profile' | 'orders' | 'products' | 'users' | 'categories' | 'wishlist' | 'settings';
 type AuthUser = {
@@ -58,6 +60,12 @@ type AdminUser = {
 type AdminCategory = {
   name: string;
   productCount: number;
+  image?: string;
+};
+
+type FeaturedToggleFeedback = {
+  tone: 'success' | 'error';
+  message: string;
 };
 
 const baseTabs: Array<{ key: TabKey; label: string; icon: typeof User }> = [
@@ -74,8 +82,36 @@ const productCategories = [
   'Stationery',
   'Textiles & Fabrics',
 ] as const;
+const TEMP_CATEGORY_NAME = 'Temp';
+const categoryThumbnailFallbacks: Record<string, string> = {
+  'home decor': '/images/home-decor.webp',
+  jewelry: '/images/jewelry.webp',
+  kitchen: '/images/kitchen.webp',
+  'pottery & ceramics': '/images/ceramics.webp',
+  stationery: '/images/stationery.webp',
+  'textiles & fabrics': '/images/textiles.webp',
+};
 
-export default function ProfilePage() {
+function resolveCategoryThumbnail(category: AdminCategory | null): string | null {
+  if (!category) {
+    return null;
+  }
+
+  const name = category.name.trim().toLowerCase();
+  if (name === TEMP_CATEGORY_NAME.toLowerCase()) {
+    return null;
+  }
+
+  const uploadedImage = category.image?.trim();
+  if (uploadedImage) {
+    return uploadedImage;
+  }
+
+  return categoryThumbnailFallbacks[name] ?? null;
+}
+
+function ProfilePageContent() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabKey>('profile');
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
@@ -101,15 +137,23 @@ export default function ProfilePage() {
   const [productPrice, setProductPrice] = useState('');
   const [productInStock, setProductInStock] = useState(true);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
-  const [isSavingFeaturedProducts, setIsSavingFeaturedProducts] = useState(false);
+  const [isSavingFeaturedProductId, setIsSavingFeaturedProductId] = useState<string | null>(null);
+  const [featuredToggleFeedback, setFeaturedToggleFeedback] = useState<
+    Record<string, FeaturedToggleFeedback>
+  >({});
   const [selectedFeaturedProductIds, setSelectedFeaturedProductIds] = useState<string[]>([]);
   const [adminProductSearch, setAdminProductSearch] = useState('');
   const [adminCategoryFilter, setAdminCategoryFilter] = useState<string>('all');
+  const [adminShowFeaturedOnly, setAdminShowFeaturedOnly] = useState(false);
+  const [adminVisibleProductCount, setAdminVisibleProductCount] = useState(12);
   const [productSuccess, setProductSuccess] = useState<string | null>(null);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false);
   const [adminUsersError, setAdminUsersError] = useState<string | null>(null);
   const [adminUserSuccess, setAdminUserSuccess] = useState<string | null>(null);
+  const [adminUserId, setAdminUserId] = useState<string | null>(null);
+  const [adminUserForm, setAdminUserForm] = useState<AdminUser | null>(null);
+  const [isSavingAdminUser, setIsSavingAdminUser] = useState(false);
   const [adminUserSearch, setAdminUserSearch] = useState('');
   const [adminCategories, setAdminCategories] = useState<AdminCategory[]>([]);
   const [isLoadingAdminCategories, setIsLoadingAdminCategories] = useState(false);
@@ -117,11 +161,40 @@ export default function ProfilePage() {
   const [adminCategorySuccess, setAdminCategorySuccess] = useState<string | null>(null);
   const [categorySourceName, setCategorySourceName] = useState('');
   const [categoryTargetName, setCategoryTargetName] = useState('');
-  const [categoryAction, setCategoryAction] = useState<'rename' | 'delete'>('rename');
+  const [categoryImage, setCategoryImage] = useState('');
+  const [isUploadingCategoryImage, setIsUploadingCategoryImage] = useState(false);
+  const [categoryAction, setCategoryAction] = useState<'rename' | 'add' | 'delete'>('rename');
   const [isSavingCategoryAction, setIsSavingCategoryAction] = useState(false);
   const [location, setLocation] = useState('');
   const [bio, setBio] = useState('');
   const [specialties, setSpecialties] = useState('');
+  const featuredFeedbackTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  function clearFeaturedFeedbackTimeout(productId: string) {
+    const existingTimeout = featuredFeedbackTimeoutsRef.current[productId];
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      delete featuredFeedbackTimeoutsRef.current[productId];
+    }
+  }
+
+  function setFeaturedFeedbackMessage(productId: string, feedback: FeaturedToggleFeedback) {
+    clearFeaturedFeedbackTimeout(productId);
+
+    setFeaturedToggleFeedback((prev) => ({
+      ...prev,
+      [productId]: feedback,
+    }));
+
+    featuredFeedbackTimeoutsRef.current[productId] = setTimeout(() => {
+      setFeaturedToggleFeedback((prev) => {
+        const { [productId]: removedFeedback, ...rest } = prev;
+        void removedFeedback;
+        return rest;
+      });
+      delete featuredFeedbackTimeoutsRef.current[productId];
+    }, 2600);
+  }
 
   const filteredAdminProducts = useMemo(() => {
     const searchTerm = adminProductSearch.trim().toLowerCase();
@@ -129,19 +202,122 @@ export default function ProfilePage() {
     return products.filter((product) => {
       const matchesCategory =
         adminCategoryFilter === 'all' || product.category === adminCategoryFilter;
+      const matchesFeatured = !adminShowFeaturedOnly || product.featured;
 
       if (!searchTerm) {
-        return matchesCategory;
+        return matchesCategory && matchesFeatured;
       }
 
       return (
         matchesCategory &&
+        matchesFeatured &&
         [product.name, product.description, product.category, product.artisanName]
           .filter(Boolean)
           .some((value) => value?.toLowerCase().includes(searchTerm))
       );
     });
-  }, [products, adminCategoryFilter, adminProductSearch]);
+  }, [products, adminCategoryFilter, adminProductSearch, adminShowFeaturedOnly]);
+
+  const visibleAdminProducts = useMemo(
+    () => filteredAdminProducts.slice(0, adminVisibleProductCount),
+    [filteredAdminProducts, adminVisibleProductCount]
+  );
+
+  useEffect(() => {
+    setAdminVisibleProductCount(12);
+  }, [adminProductSearch, adminCategoryFilter, adminShowFeaturedOnly]);
+
+  useEffect(() => {
+    if (!saveError && !saveSuccess) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setSaveError(null);
+      setSaveSuccess(null);
+    }, 3000);
+
+    return () => clearTimeout(timeoutId);
+  }, [saveError, saveSuccess]);
+
+  useEffect(() => {
+    if (!productsError && !productSuccess) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setProductsError(null);
+      setProductSuccess(null);
+    }, 3000);
+
+    return () => clearTimeout(timeoutId);
+  }, [productsError, productSuccess]);
+
+  useEffect(() => {
+    if (!adminUsersError && !adminUserSuccess) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setAdminUsersError(null);
+      setAdminUserSuccess(null);
+    }, 3000);
+
+    return () => clearTimeout(timeoutId);
+  }, [adminUsersError, adminUserSuccess]);
+
+  useEffect(() => {
+    if (!adminCategoriesError && !adminCategorySuccess) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setAdminCategoriesError(null);
+      setAdminCategorySuccess(null);
+    }, 3000);
+
+    return () => clearTimeout(timeoutId);
+  }, [adminCategoriesError, adminCategorySuccess]);
+
+  useEffect(() => {
+    if (activeTab === 'products') {
+      return;
+    }
+
+    setProductsError(null);
+    setProductSuccess(null);
+    setFeaturedToggleFeedback({});
+    Object.values(featuredFeedbackTimeoutsRef.current).forEach((timeoutId) => {
+      clearTimeout(timeoutId);
+    });
+    featuredFeedbackTimeoutsRef.current = {};
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'profile') {
+      setSaveError(null);
+      setSaveSuccess(null);
+    }
+
+    if (activeTab !== 'users') {
+      setAdminUsersError(null);
+      setAdminUserSuccess(null);
+    }
+
+    if (activeTab !== 'categories') {
+      setAdminCategoriesError(null);
+      setAdminCategorySuccess(null);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(featuredFeedbackTimeoutsRef.current).forEach((timeoutId) => {
+        clearTimeout(timeoutId);
+      });
+      featuredFeedbackTimeoutsRef.current = {};
+    };
+  }, []);
 
   const filteredAdminUsers = useMemo(() => {
     const searchTerm = adminUserSearch.trim().toLowerCase();
@@ -156,6 +332,26 @@ export default function ProfilePage() {
         .some((value) => value?.toLowerCase().includes(searchTerm))
     );
   }, [adminUsers, adminUserSearch]);
+
+  const adminCategoryOptions = useMemo(
+    () => adminCategories.map((category) => category.name),
+    [adminCategories]
+  );
+
+  const manageableAdminCategories = useMemo(
+    () => adminCategories.filter((category) => category.name.toLowerCase() !== 'temp'),
+    [adminCategories]
+  );
+
+  const selectedSourceCategory = useMemo(
+    () => adminCategories.find((category) => category.name === categorySourceName) ?? null,
+    [adminCategories, categorySourceName]
+  );
+
+  const selectedSourceCategoryThumbnail = useMemo(
+    () => resolveCategoryThumbnail(selectedSourceCategory),
+    [selectedSourceCategory]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -198,6 +394,29 @@ export default function ProfilePage() {
     setBio(authUser.bio ?? '');
     setSpecialties((authUser.specialties ?? []).join(', '));
   }, [authUser]);
+
+  useEffect(() => {
+    if (categoryAction === 'add') {
+      return;
+    }
+
+    if (manageableAdminCategories.length === 0) {
+      setCategorySourceName('');
+      return;
+    }
+
+    const hasSelectedSource = manageableAdminCategories.some(
+      (category) => category.name === categorySourceName
+    );
+
+    if (!hasSelectedSource) {
+      setCategorySourceName(manageableAdminCategories[0].name);
+    }
+  }, [categoryAction, manageableAdminCategories, categorySourceName]);
+
+  useEffect(() => {
+    setCategoryImage('');
+  }, [categoryAction]);
 
   useEffect(() => {
     if (!authUser) return;
@@ -310,6 +529,7 @@ export default function ProfilePage() {
           if (loadedCategories.length > 0) {
             setCategorySourceName((current) => current || loadedCategories[0].name);
             setCategoryTargetName((current) => current || loadedCategories[0].name);
+            setCategoryImage('');
           }
         } catch {
           setProductsError('Unable to connect. Please try again.');
@@ -348,6 +568,18 @@ export default function ProfilePage() {
     setIsSavingProfile(true);
 
     try {
+      const artisanProfileFields =
+        authUser?.role === 'artisan'
+          ? {
+              location: location.trim(),
+              bio: bio.trim(),
+              specialties: specialties
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean),
+            }
+          : {};
+
       const response = await fetch('/api/users/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -356,12 +588,7 @@ export default function ProfilePage() {
           email: email.trim(),
           phone: phone.trim(),
           profileImage: profileImage.trim(),
-          location: location.trim(),
-          bio: bio.trim(),
-          specialties: specialties
-            .split(',')
-            .map((item) => item.trim())
-            .filter(Boolean),
+          ...artisanProfileFields,
         }),
       });
 
@@ -475,48 +702,148 @@ export default function ProfilePage() {
     }
   }
 
-  async function handleSaveFeaturedProducts() {
-    setProductsError(null);
-    setProductSuccess(null);
-    setIsSavingFeaturedProducts(true);
+  async function handleToggleFeaturedProduct(productId: string, shouldBeFeatured: boolean) {
+    if (isSavingFeaturedProductId) {
+      return;
+    }
+
+    clearFeaturedFeedbackTimeout(productId);
+    setFeaturedToggleFeedback((prev) => {
+      const { [productId]: _removed, ...rest } = prev;
+      void _removed;
+      return rest;
+    });
+
+    const previousFeaturedIds = selectedFeaturedProductIds;
+    const nextFeaturedIds = shouldBeFeatured
+      ? previousFeaturedIds.includes(productId)
+        ? previousFeaturedIds
+        : [...previousFeaturedIds, productId]
+      : previousFeaturedIds.filter((id) => id !== productId);
+
+    setSelectedFeaturedProductIds(nextFeaturedIds);
+    setProducts((prev) =>
+      prev.map((product) =>
+        product.id === productId ? { ...product, featured: shouldBeFeatured } : product
+      )
+    );
+
+    setIsSavingFeaturedProductId(productId);
 
     try {
       const response = await fetch('/api/products/featured', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productIds: selectedFeaturedProductIds }),
+        body: JSON.stringify({ productIds: nextFeaturedIds }),
       });
 
       const data = (await response.json()) as { message?: string };
 
       if (!response.ok) {
-        setProductsError(data.message ?? 'Unable to update featured products');
+        setSelectedFeaturedProductIds(previousFeaturedIds);
+        setProducts((prev) =>
+          prev.map((product) => ({
+            ...product,
+            featured: previousFeaturedIds.includes(product.id),
+          }))
+        );
+        setFeaturedFeedbackMessage(productId, {
+          tone: 'error',
+          message: data.message ?? 'Unable to update featured status.',
+        });
         return;
       }
 
+      setFeaturedFeedbackMessage(productId, {
+        tone: 'success',
+        message: shouldBeFeatured
+          ? 'Product marked as featured.'
+          : 'Product removed from featured products.',
+      });
+    } catch {
+      setSelectedFeaturedProductIds(previousFeaturedIds);
       setProducts((prev) =>
         prev.map((product) => ({
           ...product,
-          featured: selectedFeaturedProductIds.includes(product.id),
+          featured: previousFeaturedIds.includes(product.id),
         }))
       );
-      setProductSuccess('Featured products updated successfully.');
-    } catch {
-      setProductsError('Unable to connect. Please try again.');
+      setFeaturedFeedbackMessage(productId, {
+        tone: 'error',
+        message: 'Unable to connect. Please try again.',
+      });
     } finally {
-      setIsSavingFeaturedProducts(false);
+      setIsSavingFeaturedProductId(null);
     }
   }
 
-  async function handleUpdateAdminUserRole(userId: string, role: AuthUser['role']) {
+  function resetAdminUserForm() {
+    setAdminUserId(null);
+    setAdminUserForm(null);
+  }
+
+  function startAdminUserEdit(user: AdminUser) {
+    setAdminUserId(user.id);
+    setAdminUserForm({
+      ...user,
+      specialties: [...(user.specialties ?? [])],
+    });
     setAdminUsersError(null);
     setAdminUserSuccess(null);
+    setActiveTab('users');
+  }
+
+  function handleAdminUserFormChange(updates: Partial<AdminUser>) {
+    setAdminUserForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const next = { ...current, ...updates };
+      if (next.role !== 'artisan') {
+        next.location = '';
+        next.bio = '';
+        next.specialties = [];
+      }
+
+      return next;
+    });
+  }
+
+  async function handleSaveAdminUser() {
+    setAdminUsersError(null);
+    setAdminUserSuccess(null);
+
+    if (!adminUserForm || !adminUserId) {
+      setAdminUsersError('Select a user to edit.');
+      return;
+    }
+
+    const nextRole = adminUserForm.role;
+    const payload = {
+      userId: adminUserId,
+      name: adminUserForm.name.trim(),
+      email: adminUserForm.email.trim(),
+      phone: (adminUserForm.phone ?? '').trim(),
+      role: nextRole,
+      profileImage: (adminUserForm.profileImage ?? '').trim(),
+      location: nextRole === 'artisan' ? (adminUserForm.location ?? '').trim() : '',
+      bio: nextRole === 'artisan' ? (adminUserForm.bio ?? '').trim() : '',
+      specialties: nextRole === 'artisan' ? (adminUserForm.specialties ?? []) : [],
+    };
+
+    if (!payload.name || !payload.email) {
+      setAdminUsersError('Name and email are required to update a user.');
+      return;
+    }
+
+    setIsSavingAdminUser(true);
 
     try {
       const response = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, role }),
+        body: JSON.stringify(payload),
       });
 
       const data = (await response.json()) as { message?: string; user?: AdminUser };
@@ -526,10 +853,13 @@ export default function ProfilePage() {
         return;
       }
 
-      setAdminUsers((prev) => prev.map((user) => (user.id === userId ? data.user! : user)));
+      setAdminUsers((prev) => prev.map((item) => (item.id === adminUserId ? data.user! : item)));
+      resetAdminUserForm();
       setAdminUserSuccess('User updated successfully.');
     } catch {
       setAdminUsersError('Unable to connect. Please try again.');
+    } finally {
+      setIsSavingAdminUser(false);
     }
   }
 
@@ -537,12 +867,44 @@ export default function ProfilePage() {
     setAdminCategoriesError(null);
     setAdminCategorySuccess(null);
 
-    if (!categorySourceName.trim() || !categoryTargetName.trim()) {
-      setAdminCategoriesError('Source and target category names are required.');
+    if (isUploadingCategoryImage) {
+      setAdminCategoriesError('Please wait for the category image upload to complete.');
       return;
     }
 
-    if (categoryAction === 'rename' && categorySourceName.trim() === categoryTargetName.trim()) {
+    if (categoryAction === 'add' && !categoryTargetName.trim()) {
+      setAdminCategoriesError('Category name is required.');
+      return;
+    }
+
+    if (categoryAction === 'add' && !categoryImage.trim()) {
+      setAdminCategoriesError('Category image is required when adding a category.');
+      return;
+    }
+
+    if (categoryAction !== 'add' && !categorySourceName.trim()) {
+      setAdminCategoriesError('Source category is required.');
+      return;
+    }
+
+    if (categoryAction === 'rename' && !categoryTargetName.trim()) {
+      setAdminCategoriesError('New category name is required.');
+      return;
+    }
+
+    if (
+      (categoryAction === 'add' || categoryAction === 'rename') &&
+      categoryImage.trim() &&
+      !/^\/images\/[^/]+\.webp$/i.test(categoryImage.trim())
+    ) {
+      setAdminCategoriesError('Category image must be an uploaded .webp file.');
+      return;
+    }
+
+    if (
+      categoryAction === 'rename' &&
+      categorySourceName.trim().toLowerCase() === categoryTargetName.trim().toLowerCase()
+    ) {
       setAdminCategoriesError('Choose a different target name when renaming a category.');
       return;
     }
@@ -556,12 +918,18 @@ export default function ProfilePage() {
               action: 'rename',
               oldName: categorySourceName.trim(),
               newName: categoryTargetName.trim(),
+              ...(categoryImage.trim() ? { image: categoryImage.trim() } : {}),
             }
-          : {
-              action: 'delete',
-              name: categorySourceName.trim(),
-              replacementName: categoryTargetName.trim(),
-            };
+          : categoryAction === 'add'
+            ? {
+                action: 'add',
+                name: categoryTargetName.trim(),
+                image: categoryImage.trim(),
+              }
+            : {
+                action: 'delete',
+                name: categorySourceName.trim(),
+              };
 
       const response = await fetch('/api/admin/categories', {
         method: 'PATCH',
@@ -580,10 +948,22 @@ export default function ProfilePage() {
       }
 
       setAdminCategories(data.categories);
+      const nextSourceOptions = data.categories.filter(
+        (category) => category.name.toLowerCase() !== 'temp'
+      );
+      if (nextSourceOptions.length > 0) {
+        setCategorySourceName(nextSourceOptions[0].name);
+      }
+      if (categoryAction === 'add' || categoryAction === 'rename') {
+        setCategoryTargetName('');
+        setCategoryImage('');
+      }
       setProductSuccess(
         categoryAction === 'rename'
           ? 'Category renamed. Product categories were updated.'
-          : 'Category reassigned. Products moved to replacement category.'
+          : categoryAction === 'add'
+            ? 'Category added successfully.'
+            : 'Category deleted. Products were moved to Temp.'
       );
       setAdminCategorySuccess('Categories updated successfully.');
     } catch {
@@ -593,30 +973,83 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleCategoryImageUpload(file: File) {
+    setAdminCategoriesError(null);
+    setAdminCategorySuccess(null);
+
+    if (file.type !== 'image/webp' && !file.name.toLowerCase().endsWith('.webp')) {
+      setAdminCategoriesError('Only .webp images are accepted.');
+      return;
+    }
+
+    setIsUploadingCategoryImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/admin/categories/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = (await response.json()) as { message?: string; imagePath?: string };
+
+      if (!response.ok || !data.imagePath) {
+        setAdminCategoriesError(data.message ?? 'Unable to upload category image.');
+        return;
+      }
+
+      setCategoryImage(data.imagePath);
+      setAdminCategorySuccess('Category image uploaded successfully.');
+    } catch {
+      setAdminCategoriesError('Unable to upload image. Please try again.');
+    } finally {
+      setIsUploadingCategoryImage(false);
+    }
+  }
+
   const userRole = authUser?.role;
 
-  const tabs: Array<{ key: TabKey; label: string; icon: typeof User }> =
-    userRole === 'artisan'
-      ? [
-          baseTabs[0],
-          { key: 'products', label: 'Products', icon: Package },
-          baseTabs[1],
-          baseTabs[2],
-        ]
-      : userRole === 'admin'
+  const tabs: Array<{ key: TabKey; label: string; icon: typeof User }> = useMemo(
+    () =>
+      userRole === 'artisan'
         ? [
             baseTabs[0],
             { key: 'products', label: 'Products', icon: Package },
-            { key: 'users', label: 'Users', icon: Users },
-            { key: 'categories', label: 'Categories', icon: Tags },
-            baseTabs[2],
-          ]
-        : [
-            baseTabs[0],
-            { key: 'orders', label: 'Orders', icon: Package },
             baseTabs[1],
             baseTabs[2],
-          ];
+          ]
+        : userRole === 'admin'
+          ? [
+              baseTabs[0],
+              { key: 'products', label: 'Products', icon: Package },
+              { key: 'users', label: 'Users', icon: Users },
+              { key: 'categories', label: 'Categories', icon: Tags },
+              baseTabs[2],
+            ]
+          : [
+              baseTabs[0],
+              { key: 'orders', label: 'Orders', icon: Package },
+              baseTabs[1],
+              baseTabs[2],
+            ],
+    [userRole]
+  );
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab');
+    if (!requestedTab) {
+      return;
+    }
+
+    const isValidTab = tabs.some((tab) => tab.key === requestedTab);
+    if (!isValidTab) {
+      return;
+    }
+
+    setActiveTab(requestedTab as TabKey);
+  }, [searchParams, tabs]);
 
   const tabButtonClasses = (key: TabKey) =>
     [
@@ -647,13 +1080,13 @@ export default function ProfilePage() {
               href='/login'
               className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700'
             >
-              Sign in
+              Sign In
             </Link>
             <Link
               href='/signup'
               className='inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent'
             >
-              Sign up
+              Sign Up
             </Link>
           </div>
         </section>
@@ -796,46 +1229,50 @@ export default function ProfilePage() {
                   />
                 </div>
 
-                <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-                  <div className='space-y-2'>
-                    <label htmlFor='location' className='text-sm font-medium'>
-                      Location
-                    </label>
-                    <input
-                      id='location'
-                      placeholder='Provo, UT'
-                      value={location}
-                      onChange={(event) => setLocation(event.target.value)}
-                      className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                    />
-                  </div>
-                  <div className='space-y-2'>
-                    <label htmlFor='specialties' className='text-sm font-medium'>
-                      Specialties (comma separated)
-                    </label>
-                    <input
-                      id='specialties'
-                      placeholder='Ceramics, Textiles, Home Decor'
-                      value={specialties}
-                      onChange={(event) => setSpecialties(event.target.value)}
-                      className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                    />
-                  </div>
-                </div>
+                {authUser.role === 'artisan' && (
+                  <>
+                    <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                      <div className='space-y-2'>
+                        <label htmlFor='location' className='text-sm font-medium'>
+                          Location
+                        </label>
+                        <input
+                          id='location'
+                          placeholder='Provo, UT'
+                          value={location}
+                          onChange={(event) => setLocation(event.target.value)}
+                          className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                        />
+                      </div>
+                      <div className='space-y-2'>
+                        <label htmlFor='specialties' className='text-sm font-medium'>
+                          Specialties (comma separated)
+                        </label>
+                        <input
+                          id='specialties'
+                          placeholder='Ceramics, Textiles, Home Decor'
+                          value={specialties}
+                          onChange={(event) => setSpecialties(event.target.value)}
+                          className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                        />
+                      </div>
+                    </div>
 
-                <div className='space-y-2'>
-                  <label htmlFor='bio' className='text-sm font-medium'>
-                    Bio
-                  </label>
-                  <textarea
-                    id='bio'
-                    rows={4}
-                    placeholder='Share a short story about your craft.'
-                    value={bio}
-                    onChange={(event) => setBio(event.target.value)}
-                    className='w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                  />
-                </div>
+                    <div className='space-y-2'>
+                      <label htmlFor='bio' className='text-sm font-medium'>
+                        Bio
+                      </label>
+                      <textarea
+                        id='bio'
+                        rows={4}
+                        placeholder='Share a short story about your craft.'
+                        value={bio}
+                        onChange={(event) => setBio(event.target.value)}
+                        className='w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                      />
+                    </div>
+                  </>
+                )}
 
                 {saveError && <p className='text-sm text-destructive'>{saveError}</p>}
                 {saveSuccess && <p className='text-sm text-green-600'>{saveSuccess}</p>}
@@ -899,147 +1336,25 @@ export default function ProfilePage() {
             (authUser.role === 'artisan' || authUser.role === 'admin') && (
               <section className='rounded-lg border border-border bg-card'>
                 <header className='space-y-1 border-b border-border p-6'>
-                  <h2 className='text-xl font-bold'>My Products</h2>
+                  <h2 className='text-xl font-bold'>
+                    {authUser.role === 'admin' ? 'Site Products' : 'My Products'}
+                  </h2>
                   <p className='text-sm text-muted-foreground'>
                     {authUser.role === 'admin'
-                      ? 'Manage the full product catalog and choose featured products'
+                      ? 'View and manage all products across the site, and choose featured products'
                       : 'Create and manage items for sale'}
                   </p>
                 </header>
                 {authUser.role === 'admin' ? (
                   <div className='space-y-6 p-6'>
-                    <div className='rounded-lg border border-border bg-background p-4'>
-                      <h3 className='font-semibold'>Homepage Featured Products</h3>
-                      <p className='mt-1 text-sm text-muted-foreground'>
-                        Select the products you want to highlight on the homepage.
-                      </p>
-                      <div className='mt-4 flex items-center gap-3'>
-                        <button
-                          type='button'
-                          onClick={handleSaveFeaturedProducts}
-                          disabled={isSavingFeaturedProducts}
-                          className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-60'
-                        >
-                          {isSavingFeaturedProducts ? 'Saving...' : 'Save Featured Selection'}
-                        </button>
+                    <div className='space-y-3'>
+                      <div className='flex items-center justify-between gap-3'>
+                        <h3 className='font-semibold'>All Products</h3>
                         <p className='text-xs text-muted-foreground'>
-                          Selected: {selectedFeaturedProductIds.length}
+                          Showing {visibleAdminProducts.length} of {filteredAdminProducts.length}
                         </p>
                       </div>
-                      {productsError && (
-                        <p className='mt-3 text-sm text-destructive'>{productsError}</p>
-                      )}
-                      {productSuccess && (
-                        <p className='mt-3 text-sm text-green-600'>{productSuccess}</p>
-                      )}
-                    </div>
-
-                    <div className='space-y-4 rounded-lg border border-border bg-background p-4'>
-                      <h3 className='font-semibold'>Edit Product Details</h3>
-                      <p className='text-sm text-muted-foreground'>
-                        Select a product from the list below, then update its details here.
-                      </p>
-                      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-                        <div className='space-y-2'>
-                          <label htmlFor='adminProductName' className='text-sm font-medium'>
-                            Name
-                          </label>
-                          <input
-                            id='adminProductName'
-                            value={productName}
-                            onChange={(event) => setProductName(event.target.value)}
-                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                          />
-                        </div>
-                        <div className='space-y-2'>
-                          <label htmlFor='adminProductCategory' className='text-sm font-medium'>
-                            Category
-                          </label>
-                          <select
-                            id='adminProductCategory'
-                            value={productCategory}
-                            onChange={(event) => setProductCategory(event.target.value)}
-                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                          >
-                            {productCategories.map((category) => (
-                              <option key={category} value={category}>
-                                {category}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className='space-y-2'>
-                        <label htmlFor='adminProductDescription' className='text-sm font-medium'>
-                          Description
-                        </label>
-                        <textarea
-                          id='adminProductDescription'
-                          rows={4}
-                          value={productDescription}
-                          onChange={(event) => setProductDescription(event.target.value)}
-                          className='w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                        />
-                      </div>
-                      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-                        <div className='space-y-2'>
-                          <label htmlFor='adminProductImage' className='text-sm font-medium'>
-                            Image URL
-                          </label>
-                          <input
-                            id='adminProductImage'
-                            value={productImage}
-                            onChange={(event) => setProductImage(event.target.value)}
-                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                          />
-                        </div>
-                        <div className='space-y-2'>
-                          <label htmlFor='adminProductPrice' className='text-sm font-medium'>
-                            Price
-                          </label>
-                          <input
-                            id='adminProductPrice'
-                            type='number'
-                            min='0'
-                            step='0.01'
-                            value={productPrice}
-                            onChange={(event) => setProductPrice(event.target.value)}
-                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                          />
-                        </div>
-                      </div>
-                      <label className='inline-flex items-center gap-2 text-sm text-foreground'>
-                        <input
-                          type='checkbox'
-                          checked={productInStock}
-                          onChange={(event) => setProductInStock(event.target.checked)}
-                          className='h-4 w-4 rounded border-border'
-                        />
-                        In stock
-                      </label>
-
-                      <div className='flex items-center gap-3'>
-                        <button
-                          type='button'
-                          onClick={handleSaveProduct}
-                          disabled={isSavingProduct || !productId}
-                          className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-60'
-                        >
-                          {isSavingProduct ? 'Saving...' : 'Save Product Changes'}
-                        </button>
-                        <button
-                          type='button'
-                          onClick={resetProductForm}
-                          className='inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent'
-                        >
-                          Clear Selection
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className='space-y-3'>
-                      <h3 className='font-semibold'>All Products</h3>
-                      <div className='grid grid-cols-1 gap-3 rounded-lg border border-border bg-background p-4 md:grid-cols-2'>
+                      <div className='grid grid-cols-1 gap-3 rounded-lg border border-border bg-background p-4 md:grid-cols-3'>
                         <div className='space-y-2'>
                           <label htmlFor='adminProductSearch' className='text-sm font-medium'>
                             Search products
@@ -1070,6 +1385,31 @@ export default function ProfilePage() {
                             ))}
                           </select>
                         </div>
+                        <div className='space-y-2'>
+                          <label className='text-sm font-medium'>Quick filter</label>
+                          <div className='flex h-10 items-center justify-between rounded-md border border-border bg-input-background px-3'>
+                            <label className='inline-flex items-center gap-2 text-sm'>
+                              <input
+                                type='checkbox'
+                                checked={adminShowFeaturedOnly}
+                                onChange={(event) => setAdminShowFeaturedOnly(event.target.checked)}
+                                className='h-4 w-4 rounded border-border'
+                              />
+                              Featured only
+                            </label>
+                            <button
+                              type='button'
+                              onClick={() => {
+                                setAdminProductSearch('');
+                                setAdminCategoryFilter('all');
+                                setAdminShowFeaturedOnly(false);
+                              }}
+                              className='text-xs font-medium text-amber-700 hover:underline'
+                            >
+                              Reset
+                            </button>
+                          </div>
+                        </div>
                       </div>
                       {isLoadingProducts && (
                         <p className='text-sm text-muted-foreground'>Loading products...</p>
@@ -1086,8 +1426,12 @@ export default function ProfilePage() {
                         )}
 
                       {!isLoadingProducts &&
-                        filteredAdminProducts.map((product) => {
+                        visibleAdminProducts.map((product) => {
                           const isChecked = selectedFeaturedProductIds.includes(product.id);
+                          const isSavingFeaturedThisProduct =
+                            isSavingFeaturedProductId === product.id;
+                          const featuredFeedback = featuredToggleFeedback[product.id];
+                          const isEditingThisProduct = productId === product.id;
 
                           return (
                             <article
@@ -1117,15 +1461,13 @@ export default function ProfilePage() {
                                   <input
                                     type='checkbox'
                                     checked={isChecked}
-                                    onChange={(event) => {
-                                      setSelectedFeaturedProductIds((prev) => {
-                                        if (event.target.checked) {
-                                          return [...prev, product.id];
-                                        }
-
-                                        return prev.filter((id) => id !== product.id);
-                                      });
-                                    }}
+                                    disabled={Boolean(isSavingFeaturedProductId)}
+                                    onChange={(event) =>
+                                      void handleToggleFeaturedProduct(
+                                        product.id,
+                                        event.target.checked
+                                      )
+                                    }
                                     className='h-4 w-4 rounded border-border'
                                   />
                                   Featured
@@ -1136,12 +1478,155 @@ export default function ProfilePage() {
                                   onClick={() => startProductEdit(product)}
                                   className='inline-flex h-8 items-center justify-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent'
                                 >
-                                  Edit
+                                  {isEditingThisProduct ? 'Editing' : 'Edit'}
                                 </button>
                               </div>
+
+                              <div className='mt-2 min-h-5'>
+                                {isSavingFeaturedThisProduct && (
+                                  <p className='text-xs text-muted-foreground'>
+                                    Saving featured status...
+                                  </p>
+                                )}
+                                {!isSavingFeaturedThisProduct && featuredFeedback && (
+                                  <p
+                                    className={`text-xs ${
+                                      featuredFeedback.tone === 'success'
+                                        ? 'text-green-600'
+                                        : 'text-destructive'
+                                    }`}
+                                  >
+                                    {featuredFeedback.message}
+                                  </p>
+                                )}
+                              </div>
+
+                              {isEditingThisProduct && (
+                                <div className='mt-4 space-y-4 rounded-md border border-border bg-card p-4'>
+                                  <p className='text-sm font-semibold'>Edit Product Details</p>
+
+                                  <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                                    <div className='space-y-2'>
+                                      <label className='text-sm font-medium'>Name</label>
+                                      <input
+                                        value={productName}
+                                        onChange={(event) => setProductName(event.target.value)}
+                                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                      />
+                                    </div>
+                                    <div className='space-y-2'>
+                                      <label className='text-sm font-medium'>Category</label>
+                                      <select
+                                        value={productCategory}
+                                        onChange={(event) => setProductCategory(event.target.value)}
+                                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                      >
+                                        {adminCategoryOptions
+                                          .filter(
+                                            (categoryName) =>
+                                              categoryName.toLowerCase() !==
+                                              TEMP_CATEGORY_NAME.toLowerCase()
+                                          )
+                                          .map((category) => (
+                                            <option key={category} value={category}>
+                                              {category}
+                                            </option>
+                                          ))}
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  <div className='space-y-2'>
+                                    <label className='text-sm font-medium'>Description</label>
+                                    <textarea
+                                      rows={4}
+                                      value={productDescription}
+                                      onChange={(event) =>
+                                        setProductDescription(event.target.value)
+                                      }
+                                      className='w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                    />
+                                  </div>
+
+                                  <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                                    <div className='space-y-2'>
+                                      <label className='text-sm font-medium'>Image URL</label>
+                                      <input
+                                        value={productImage}
+                                        onChange={(event) => setProductImage(event.target.value)}
+                                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                      />
+                                    </div>
+                                    <div className='space-y-2'>
+                                      <label className='text-sm font-medium'>Price</label>
+                                      <input
+                                        type='number'
+                                        min='0'
+                                        step='0.01'
+                                        value={productPrice}
+                                        onChange={(event) => setProductPrice(event.target.value)}
+                                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <label className='inline-flex items-center gap-2 text-sm text-foreground'>
+                                    <input
+                                      type='checkbox'
+                                      checked={productInStock}
+                                      onChange={(event) => setProductInStock(event.target.checked)}
+                                      className='h-4 w-4 rounded border-border'
+                                    />
+                                    In stock
+                                  </label>
+
+                                  <div className='flex items-center gap-3'>
+                                    <button
+                                      type='button'
+                                      onClick={handleSaveProduct}
+                                      disabled={isSavingProduct || !productId}
+                                      className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-60'
+                                    >
+                                      {isSavingProduct ? 'Saving...' : 'Save Product Changes'}
+                                    </button>
+                                    <button
+                                      type='button'
+                                      onClick={resetProductForm}
+                                      className='inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent'
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+
+                                  {productsError && (
+                                    <p className='text-sm text-destructive'>{productsError}</p>
+                                  )}
+                                  {productSuccess && (
+                                    <p className='text-sm text-green-600'>{productSuccess}</p>
+                                  )}
+                                </div>
+                              )}
                             </article>
                           );
                         })}
+
+                      {!isLoadingProducts &&
+                        filteredAdminProducts.length > visibleAdminProducts.length && (
+                          <div className='pt-2'>
+                            <button
+                              type='button'
+                              onClick={() => setAdminVisibleProductCount((current) => current + 12)}
+                              className='inline-flex h-9 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent'
+                            >
+                              {(() => {
+                                const remaining =
+                                  filteredAdminProducts.length - visibleAdminProducts.length;
+                                const loadCount = Math.min(12, remaining);
+                                return `Load ${loadCount} more`;
+                              })()}
+                            </button>
+                          </div>
+                        )}
                     </div>
                   </div>
                 ) : (
@@ -1309,81 +1794,223 @@ export default function ProfilePage() {
               <header className='space-y-1 border-b border-border p-6'>
                 <h2 className='text-xl font-bold'>User Management</h2>
                 <p className='text-sm text-muted-foreground'>
-                  Update account roles and review artisan profile metadata.
+                  Update account details and role assignments across all users.
                 </p>
               </header>
-              <div className='space-y-4 p-6'>
-                <div className='space-y-2'>
-                  <label htmlFor='adminUserSearch' className='text-sm font-medium'>
-                    Search users
-                  </label>
-                  <input
-                    id='adminUserSearch'
-                    value={adminUserSearch}
-                    onChange={(event) => setAdminUserSearch(event.target.value)}
-                    placeholder='Search by name, email, role, location...'
-                    className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                  />
-                </div>
+              <div className='space-y-6 p-6'>
+                <div className='space-y-3'>
+                  <div className='flex items-center justify-between gap-3'>
+                    <h3 className='font-semibold'>All Users</h3>
+                    <p className='text-xs text-muted-foreground'>
+                      Showing {filteredAdminUsers.length} of {adminUsers.length}
+                    </p>
+                  </div>
 
-                {isLoadingAdminUsers && (
-                  <p className='text-sm text-muted-foreground'>Loading users...</p>
-                )}
-                {!isLoadingAdminUsers && adminUsersError && (
-                  <p className='text-sm text-destructive'>{adminUsersError}</p>
-                )}
-                {adminUserSuccess && <p className='text-sm text-green-600'>{adminUserSuccess}</p>}
+                  <div className='space-y-2 rounded-lg border border-border bg-background p-4'>
+                    <label htmlFor='adminUserSearch' className='text-sm font-medium'>
+                      Search users
+                    </label>
+                    <input
+                      id='adminUserSearch'
+                      value={adminUserSearch}
+                      onChange={(event) => setAdminUserSearch(event.target.value)}
+                      placeholder='Search by name, email, role, location...'
+                      className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                    />
+                  </div>
 
-                {!isLoadingAdminUsers &&
-                  !adminUsersError &&
-                  filteredAdminUsers.map((user) => (
-                    <article
-                      key={user.id}
-                      className='rounded-lg border border-border bg-background p-4'
-                    >
-                      <div className='grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]'>
-                        <div className='space-y-1'>
-                          <p className='font-semibold'>{user.name}</p>
-                          <p className='text-sm text-muted-foreground'>{user.email}</p>
-                          <p className='text-sm text-muted-foreground'>
-                            {user.location || 'No location'}
-                            {typeof user.artisanRating === 'number' &&
-                              user.artisanRating > 0 &&
-                              ` • Rating ${user.artisanRating.toFixed(1)}`}
-                          </p>
-                          {Array.isArray(user.specialties) && user.specialties.length > 0 && (
-                            <p className='text-xs text-muted-foreground'>
-                              Specialties: {user.specialties.join(', ')}
-                            </p>
+                  {isLoadingAdminUsers && (
+                    <p className='text-sm text-muted-foreground'>Loading users...</p>
+                  )}
+                  {!isLoadingAdminUsers && adminUsers.length === 0 && !adminUsersError && (
+                    <p className='text-sm text-muted-foreground'>No users found.</p>
+                  )}
+                  {!isLoadingAdminUsers &&
+                    adminUsers.length > 0 &&
+                    filteredAdminUsers.length === 0 && (
+                      <p className='text-sm text-muted-foreground'>
+                        No users match your current search.
+                      </p>
+                    )}
+
+                  {!isLoadingAdminUsers &&
+                    !adminUsersError &&
+                    filteredAdminUsers.map((user) => {
+                      const isEditingThisUser = adminUserId === user.id;
+
+                      return (
+                        <article
+                          key={user.id}
+                          className='rounded-lg border border-border bg-background p-4'
+                        >
+                          <div className='flex items-start justify-between gap-4'>
+                            <div className='space-y-1'>
+                              <p className='font-semibold'>{user.name}</p>
+                              <p className='text-sm text-muted-foreground'>{user.email}</p>
+                              <p className='text-xs text-muted-foreground'>
+                                Role: {user.role}
+                                {user.location ? ` - ${user.location}` : ''}
+                              </p>
+                              {user.phone && (
+                                <p className='text-xs text-muted-foreground'>Phone: {user.phone}</p>
+                              )}
+                            </div>
+                            <button
+                              type='button'
+                              onClick={() => startAdminUserEdit(user)}
+                              className='inline-flex h-8 items-center justify-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent'
+                            >
+                              {isEditingThisUser ? 'Editing' : 'Edit'}
+                            </button>
+                          </div>
+
+                          {isEditingThisUser && adminUserForm && (
+                            <div className='mt-4 space-y-4 rounded-md border border-border bg-card p-4'>
+                              <p className='text-sm font-semibold'>Edit User Details</p>
+
+                              <div className='grid gap-4 md:grid-cols-2'>
+                                <div className='space-y-2'>
+                                  <label className='text-sm font-medium'>Name</label>
+                                  <input
+                                    value={adminUserForm.name}
+                                    onChange={(event) =>
+                                      handleAdminUserFormChange({ name: event.target.value })
+                                    }
+                                    className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                  />
+                                </div>
+
+                                <div className='space-y-2'>
+                                  <label className='text-sm font-medium'>Email</label>
+                                  <input
+                                    type='email'
+                                    value={adminUserForm.email}
+                                    onChange={(event) =>
+                                      handleAdminUserFormChange({ email: event.target.value })
+                                    }
+                                    className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                  />
+                                </div>
+
+                                <div className='space-y-2'>
+                                  <label className='text-sm font-medium'>Phone</label>
+                                  <input
+                                    value={adminUserForm.phone ?? ''}
+                                    onChange={(event) =>
+                                      handleAdminUserFormChange({ phone: event.target.value })
+                                    }
+                                    className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                  />
+                                </div>
+
+                                <div className='space-y-2'>
+                                  <label className='text-sm font-medium'>Role</label>
+                                  <select
+                                    value={adminUserForm.role}
+                                    onChange={(event) =>
+                                      handleAdminUserFormChange({
+                                        role: event.target.value as AuthUser['role'],
+                                      })
+                                    }
+                                    className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                  >
+                                    <option value='purchaser'>Purchaser</option>
+                                    <option value='artisan'>Artisan</option>
+                                    <option value='admin'>Admin</option>
+                                  </select>
+                                </div>
+
+                                <div className='space-y-2 md:col-span-2'>
+                                  <label className='text-sm font-medium'>Profile Image URL</label>
+                                  <input
+                                    value={adminUserForm.profileImage ?? ''}
+                                    onChange={(event) =>
+                                      handleAdminUserFormChange({
+                                        profileImage: event.target.value,
+                                      })
+                                    }
+                                    className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                  />
+                                </div>
+
+                                {adminUserForm.role === 'artisan' && (
+                                  <>
+                                    <div className='space-y-2'>
+                                      <label className='text-sm font-medium'>Location</label>
+                                      <input
+                                        value={adminUserForm.location ?? ''}
+                                        onChange={(event) =>
+                                          handleAdminUserFormChange({
+                                            location: event.target.value,
+                                          })
+                                        }
+                                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                      />
+                                    </div>
+
+                                    <div className='space-y-2 md:col-span-2'>
+                                      <label className='text-sm font-medium'>
+                                        Specialties (comma separated)
+                                      </label>
+                                      <input
+                                        value={(adminUserForm.specialties ?? []).join(', ')}
+                                        onChange={(event) =>
+                                          handleAdminUserFormChange({
+                                            specialties: event.target.value
+                                              .split(',')
+                                              .map((item) => item.trim())
+                                              .filter(Boolean),
+                                          })
+                                        }
+                                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                      />
+                                    </div>
+
+                                    <div className='space-y-2 md:col-span-2'>
+                                      <label className='text-sm font-medium'>Bio</label>
+                                      <textarea
+                                        rows={3}
+                                        value={adminUserForm.bio ?? ''}
+                                        onChange={(event) =>
+                                          handleAdminUserFormChange({ bio: event.target.value })
+                                        }
+                                        className='w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                      />
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+
+                              {adminUsersError && (
+                                <p className='text-sm text-destructive'>{adminUsersError}</p>
+                              )}
+                              {adminUserSuccess && (
+                                <p className='text-sm text-green-600'>{adminUserSuccess}</p>
+                              )}
+
+                              <div className='flex items-center gap-3'>
+                                <button
+                                  type='button'
+                                  onClick={handleSaveAdminUser}
+                                  disabled={isSavingAdminUser || !adminUserId}
+                                  className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-60'
+                                >
+                                  {isSavingAdminUser ? 'Saving...' : 'Save User Changes'}
+                                </button>
+                                <button
+                                  type='button'
+                                  onClick={resetAdminUserForm}
+                                  className='inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent'
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
                           )}
-                        </div>
-
-                        <div className='space-y-2'>
-                          <label
-                            htmlFor={`role-${user.id}`}
-                            className='text-xs font-medium uppercase tracking-wide text-muted-foreground'
-                          >
-                            Role
-                          </label>
-                          <select
-                            id={`role-${user.id}`}
-                            value={user.role}
-                            onChange={(event) =>
-                              handleUpdateAdminUserRole(
-                                user.id,
-                                event.target.value as AuthUser['role']
-                              )
-                            }
-                            className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                          >
-                            <option value='purchaser'>Purchaser</option>
-                            <option value='artisan'>Artisan</option>
-                            <option value='admin'>Admin</option>
-                          </select>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
+                        </article>
+                      );
+                    })}
+                </div>
               </div>
             </section>
           )}
@@ -1393,13 +2020,14 @@ export default function ProfilePage() {
               <header className='space-y-1 border-b border-border p-6'>
                 <h2 className='text-xl font-bold'>Category Management</h2>
                 <p className='text-sm text-muted-foreground'>
-                  Rename categories or reassign products from one category to another.
+                  Rename categories, add new categories, or delete categories by moving products to
+                  Temp.
                 </p>
               </header>
               <div className='space-y-6 p-6'>
                 <div className='space-y-4 rounded-lg border border-border bg-background p-4'>
-                  <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
-                    <div className='space-y-2'>
+                  <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
+                    <div className='space-y-2 md:col-span-2'>
                       <label htmlFor='categoryAction' className='text-sm font-medium'>
                         Action
                       </label>
@@ -1407,59 +2035,145 @@ export default function ProfilePage() {
                         id='categoryAction'
                         value={categoryAction}
                         onChange={(event) =>
-                          setCategoryAction(event.target.value as 'rename' | 'delete')
+                          setCategoryAction(event.target.value as 'rename' | 'add' | 'delete')
                         }
                         className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
                       >
+                        <option value='add'>Add Category</option>
                         <option value='rename'>Rename Category</option>
-                        <option value='delete'>Reassign and Remove Category</option>
+                        <option value='delete'>Remove Category (Move to Temp)</option>
                       </select>
                     </div>
-                    <div className='space-y-2'>
-                      <label htmlFor='sourceCategory' className='text-sm font-medium'>
-                        Source Category
-                      </label>
-                      <select
-                        id='sourceCategory'
-                        value={categorySourceName}
-                        onChange={(event) => setCategorySourceName(event.target.value)}
-                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                      >
-                        {adminCategories.map((category) => (
-                          <option key={category.name} value={category.name}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className='space-y-2'>
-                      <label htmlFor='targetCategory' className='text-sm font-medium'>
-                        {categoryAction === 'rename' ? 'New Name' : 'Replacement Category'}
-                      </label>
-                      <input
-                        id='targetCategory'
-                        value={categoryTargetName}
-                        onChange={(event) => setCategoryTargetName(event.target.value)}
-                        placeholder={
-                          categoryAction === 'rename'
-                            ? 'Enter new category name'
-                            : 'Enter replacement category'
-                        }
-                        className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
-                      />
-                    </div>
+                    {categoryAction !== 'add' && (
+                      <div className='space-y-2 md:col-span-1'>
+                        <label htmlFor='sourceCategory' className='text-sm font-medium'>
+                          Source Category
+                        </label>
+                        <select
+                          id='sourceCategory'
+                          value={categorySourceName}
+                          onChange={(event) => setCategorySourceName(event.target.value)}
+                          className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                        >
+                          {manageableAdminCategories.map((category) => (
+                            <option key={category.name} value={category.name}>
+                              {category.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {categoryAction !== 'delete' && (
+                      <div className='space-y-2 md:col-span-1'>
+                        <label htmlFor='targetCategory' className='text-sm font-medium'>
+                          {categoryAction === 'rename' ? 'New Name' : 'Category Name'}
+                        </label>
+                        <input
+                          id='targetCategory'
+                          value={categoryTargetName}
+                          onChange={(event) => setCategoryTargetName(event.target.value)}
+                          placeholder={
+                            categoryAction === 'rename'
+                              ? 'Enter new category name'
+                              : 'Enter category name'
+                          }
+                          className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                        />
+                      </div>
+                    )}
+                    {(categoryAction === 'add' || categoryAction === 'rename') && (
+                      <div className='space-y-2 md:col-span-2'>
+                        <label htmlFor='categoryImage' className='text-sm font-medium'>
+                          Category Image (.webp)
+                        </label>
+                        <div className='flex flex-col gap-2 rounded-md border border-border bg-input-background p-3 sm:flex-row sm:items-center sm:justify-between'>
+                          <label
+                            htmlFor='categoryImage'
+                            className='inline-flex h-9 cursor-pointer items-center justify-center rounded-md bg-amber-600 px-3 text-sm font-medium text-white transition-colors hover:bg-amber-700'
+                          >
+                            Choose .webp File
+                          </label>
+                          <p className='text-xs text-muted-foreground' aria-live='polite'>
+                            {isUploadingCategoryImage
+                              ? 'Uploading image...'
+                              : categoryImage
+                                ? `Uploaded: ${categoryImage.split('/').pop() ?? categoryImage}`
+                                : 'No image uploaded yet'}
+                          </p>
+                        </div>
+                        <input
+                          id='categoryImage'
+                          type='file'
+                          accept='image/webp'
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) {
+                              void handleCategoryImageUpload(file);
+                            }
+                            event.currentTarget.value = '';
+                          }}
+                          className='sr-only'
+                        />
+                        <p className='text-xs text-muted-foreground'>
+                          {categoryAction === 'add'
+                            ? 'Required. Upload a .webp file to /public/images.'
+                            : 'Optional for rename. Leave empty to keep current image.'}
+                        </p>
+
+                        {(categoryImage ||
+                          (categoryAction === 'rename' && selectedSourceCategoryThumbnail)) && (
+                          <div className='flex items-center gap-3 rounded-md border border-border bg-card/60 p-2'>
+                            <Image
+                              src={
+                                categoryImage ||
+                                selectedSourceCategoryThumbnail ||
+                                '/images/stationery.webp'
+                              }
+                              alt='Category preview'
+                              width={56}
+                              height={56}
+                              className='h-14 w-14 rounded-md object-cover'
+                            />
+                            <div className='text-xs text-muted-foreground'>
+                              {isUploadingCategoryImage
+                                ? 'Uploading image...'
+                                : categoryImage
+                                  ? 'New image uploaded'
+                                  : 'Current category image'}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className='flex items-center gap-3'>
                     <button
                       type='button'
                       onClick={handleSaveCategoryAction}
-                      disabled={isSavingCategoryAction || adminCategories.length === 0}
+                      disabled={
+                        isUploadingCategoryImage ||
+                        isSavingCategoryAction ||
+                        (categoryAction !== 'add' && manageableAdminCategories.length === 0)
+                      }
                       className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-60'
                     >
-                      {isSavingCategoryAction ? 'Saving...' : 'Apply Category Change'}
+                      {isSavingCategoryAction
+                        ? 'Saving...'
+                        : categoryAction === 'rename'
+                          ? 'Rename Category'
+                          : categoryAction === 'add'
+                            ? 'Add Category'
+                            : 'Delete Category'}
                     </button>
                   </div>
+
+                  {categoryAction === 'delete' && (
+                    <p className='text-xs text-muted-foreground'>
+                      Deleting a category moves its products to Temp so they are hidden from the
+                      storefront until reassigned.
+                    </p>
+                  )}
 
                   {adminCategoriesError && (
                     <p className='text-sm text-destructive'>{adminCategoriesError}</p>
@@ -1480,7 +2194,26 @@ export default function ProfilePage() {
                         key={category.name}
                         className='flex items-center justify-between rounded-lg border border-border bg-background p-3'
                       >
-                        <span className='font-medium'>{category.name}</span>
+                        <div className='flex items-center gap-3'>
+                          {resolveCategoryThumbnail(category) ? (
+                            <Image
+                              src={resolveCategoryThumbnail(category) ?? '/images/stationery.webp'}
+                              alt={`${category.name} thumbnail`}
+                              width={32}
+                              height={32}
+                              className='h-8 w-8 rounded object-cover'
+                            />
+                          ) : (
+                            <div className='flex h-8 w-8 items-center justify-center rounded bg-muted text-[10px] font-semibold text-muted-foreground'>
+                              {category.name.toLowerCase() === TEMP_CATEGORY_NAME.toLowerCase() ? (
+                                'TMP'
+                              ) : (
+                                <Tags className='h-4 w-4' aria-hidden='true' />
+                              )}
+                            </div>
+                          )}
+                          <span className='font-medium'>{category.name}</span>
+                        </div>
                         <span className='text-sm text-muted-foreground'>
                           {category.productCount} products
                         </span>
@@ -1595,5 +2328,19 @@ export default function ProfilePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className='mx-auto w-full max-w-3xl px-4 py-16 text-center text-muted-foreground'>
+          Loading profile...
+        </div>
+      }
+    >
+      <ProfilePageContent />
+    </Suspense>
   );
 }

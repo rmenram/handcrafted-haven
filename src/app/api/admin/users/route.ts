@@ -15,7 +15,6 @@ const updateUserSchema = z.object({
   location: z.string().trim().max(120).optional(),
   bio: z.string().trim().max(400).optional(),
   specialties: z.array(z.string().trim().min(1).max(40)).max(10).optional(),
-  artisanRating: z.number().min(0).max(5).optional(),
 });
 
 async function requireAdminAuth() {
@@ -52,15 +51,17 @@ export async function GET() {
 
     return NextResponse.json({
       users: users.map((user) => ({
+        isArtisan: user.role === 'artisan',
         id: String(user._id),
         name: user.name,
         email: user.email,
         role: user.role,
         phone: user.phone ?? '',
         profileImage: user.profileImage ?? '',
-        location: user.location ?? '',
-        bio: user.bio ?? '',
-        specialties: Array.isArray(user.specialties) ? user.specialties : [],
+        location: user.role === 'artisan' ? (user.location ?? '') : '',
+        bio: user.role === 'artisan' ? (user.bio ?? '') : '',
+        specialties:
+          user.role === 'artisan' && Array.isArray(user.specialties) ? user.specialties : [],
         memberSince: user.memberSince ?? null,
         artisanRating: Number(user.artisanRating ?? 0),
         createdAt: user.createdAt,
@@ -111,8 +112,20 @@ export async function PATCH(request: Request) {
     if (typeof parsed.data.location === 'string') updateSet.location = parsed.data.location;
     if (typeof parsed.data.bio === 'string') updateSet.bio = parsed.data.bio;
     if (Array.isArray(parsed.data.specialties)) updateSet.specialties = parsed.data.specialties;
-    if (typeof parsed.data.artisanRating === 'number')
-      updateSet.artisanRating = parsed.data.artisanRating;
+
+    const existingUser = await User.findById(parsed.data.userId).select('role').lean();
+    if (!existingUser) {
+      return NextResponse.json({ message: 'User not found' }, { status: 404 });
+    }
+
+    const nextRole = parsed.data.role ?? existingUser.role;
+    const isArtisan = nextRole === 'artisan';
+
+    if (!isArtisan) {
+      updateSet.location = '';
+      updateSet.bio = '';
+      updateSet.specialties = [];
+    }
 
     const updatedUser = await User.findByIdAndUpdate(
       parsed.data.userId,
@@ -130,15 +143,19 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({
       user: {
+        isArtisan: updatedUser.role === 'artisan',
         id: String(updatedUser._id),
         name: updatedUser.name,
         email: updatedUser.email,
         role: updatedUser.role,
         phone: updatedUser.phone ?? '',
         profileImage: updatedUser.profileImage ?? '',
-        location: updatedUser.location ?? '',
-        bio: updatedUser.bio ?? '',
-        specialties: Array.isArray(updatedUser.specialties) ? updatedUser.specialties : [],
+        location: updatedUser.role === 'artisan' ? (updatedUser.location ?? '') : '',
+        bio: updatedUser.role === 'artisan' ? (updatedUser.bio ?? '') : '',
+        specialties:
+          updatedUser.role === 'artisan' && Array.isArray(updatedUser.specialties)
+            ? updatedUser.specialties
+            : [],
         memberSince: updatedUser.memberSince ?? null,
         artisanRating: Number(updatedUser.artisanRating ?? 0),
         createdAt: updatedUser.createdAt,

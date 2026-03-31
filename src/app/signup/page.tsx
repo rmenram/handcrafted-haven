@@ -124,14 +124,14 @@ export default function SignupPage() {
             disabled={loading}
             className='inline-flex h-10 w-full items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60'
           >
-            {loading ? 'Creating account...' : 'Sign up'}
+            {loading ? 'Creating account...' : 'Sign Up'}
           </button>
         </form>
 
         <p className='mt-4 text-sm text-muted-foreground'>
           Already have an account?{' '}
           <Link href='/login' className='font-medium text-amber-600 hover:underline'>
-            Sign in
+            Sign In
           </Link>
         </p>
       </div>

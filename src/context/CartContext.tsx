@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { createContext, useContext, useMemo, useState } from 'react';
 
 type Product = {
-  id: number;
+  _id: string;
   name: string;
   artisanName: string;
   price: number;
@@ -20,8 +20,9 @@ type CartContextType = {
   cartItems: CartItem[];
   isCartEnabled: boolean;
   userRole: 'purchaser' | 'artisan' | 'admin' | null;
-  removeFromCart: (productId: number) => void;
-  updateQuantity: (productId: number, nextQuantity: number) => void;
+  addToCart: (product: Product, quantity?: number) => void;
+  removeFromCart: (productId: string) => void;
+  updateQuantity: (productId: string, nextQuantity: number) => void;
   clearCart: () => void;
   getCartTotal: () => number;
   getCartItemsCount: () => number;
@@ -76,15 +77,33 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     [cartItems, isCartEnabled]
   );
 
-  const removeFromCart = (productId: number) => {
+  const addToCart = (product: Product, quantity: number = 1) => {
     if (!isCartEnabled) {
       return;
     }
 
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
+    setCartItems((prev) => {
+      const existing = prev.find((item) => item.product._id === product._id);
+      if (existing) {
+        return prev.map((item) =>
+          item.product._id === product._id
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
+      }
+      return [...prev, { product, quantity }];
+    });
   };
 
-  const updateQuantity = (productId: number, nextQuantity: number) => {
+  const removeFromCart = (productId: string) => {
+    if (!isCartEnabled) {
+      return;
+    }
+
+    setCartItems((prev) => prev.filter((item) => item.product._id !== productId));
+  };
+
+  const updateQuantity = (productId: string, nextQuantity: number) => {
     if (!isCartEnabled) {
       return;
     }
@@ -96,7 +115,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     setCartItems((prev) =>
       prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity: nextQuantity } : item
+        item.product._id === productId ? { ...item, quantity: nextQuantity } : item
       )
     );
   };
@@ -127,6 +146,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         cartItems: effectiveCartItems,
         isCartEnabled,
         userRole,
+        addToCart,
         removeFromCart,
         updateQuantity,
         clearCart,

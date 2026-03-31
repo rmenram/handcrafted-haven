@@ -12,7 +12,6 @@ const DEFAULT_CATEGORIES = [
   'Textiles & Fabrics',
 ];
 const TEMP_CATEGORY = 'Temp';
-const TEMP_CATEGORY = 'Temp';
 
 export async function GET() {
   try {

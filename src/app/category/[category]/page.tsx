@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { connectToDatabase } from '@/lib/mongodb';
 import Product from '@/models/Product';
+import Link from 'next/link';
 
 type CategoryPageProps = {
   params: Promise<{
@@ -15,11 +16,31 @@ type CategoryProductViewModel = {
   price: number;
   artisanName: string;
   inStock: boolean;
+  rating: number;
 };
 
 async function getProductsForCategory(categoryName: string): Promise<CategoryProductViewModel[]> {
   try {
     await connectToDatabase();
+
+    if (categoryName.toLowerCase() === 'top rated') { //search for the top rated function 4 to 5 points products only
+      const products = await Product.find({
+        rating: { $gte: 4 },
+      })
+        .sort({ rating: -1 }) //
+        .limit(24)
+        .lean();
+
+      return products.map((product) => ({
+        id: String(product._id),
+        name: product.name,
+        image: product.image,
+        price: Number(product.price ?? 0),
+        rating: Number(product.rating ?? 0),
+        artisanName: product.artisanName,
+        inStock: Boolean(product.inStock),
+      }));
+    }
 
     const escapedCategory = categoryName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -35,6 +56,7 @@ async function getProductsForCategory(categoryName: string): Promise<CategoryPro
       name: product.name,
       image: product.image,
       price: Number(product.price ?? 0),
+      rating: Number(product.rating ?? 0),
       artisanName: product.artisanName,
       inStock: Boolean(product.inStock),
     }));
@@ -47,9 +69,13 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   const { category } = await params;
   const decodedCategory = decodeURIComponent(category);
   const products = await getProductsForCategory(decodedCategory);
+  const isTopRated = decodedCategory.toLowerCase() === 'top rated';
 
   return (
     <section className='mx-auto max-w-6xl space-y-8 px-4 py-12'>
+      <Link href="/categories" className="inline-block text-sm hover:underline"> {/* Button for back to categories page after browse by category */} 
+        ← Back to categories
+      </Link>
       <header className='space-y-2'>
         <h1 className='text-3xl font-semibold tracking-tight'>{decodedCategory}</h1>
         <p className='text-slate-600'>Discover handcrafted products in this category.</p>
@@ -85,6 +111,15 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
               <div className='space-y-2 p-4'>
                 <h2 className='text-lg font-semibold'>{product.name}</h2>
                 <p className='text-sm text-slate-600'>By {product.artisanName}</p>
+                {/* for Top Rated only */}
+                {isTopRated && (
+                  <p className="text-sm flex items-center gap-1">
+                    <span className="text-amber-500">★</span>
+                    <span className="text-slate-700">
+                      {product.rating > 0 ? product.rating.toFixed(1) : 'New'}
+                    </span>
+                  </p>
+                )}           
                 <p className='text-base font-medium'>${product.price.toFixed(2)}</p>
               </div>
             </article>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { ShoppingCart, Star } from 'lucide-react';
+import SearchBar from '@/components/SearchBarCategories';
 
 type Product = {
   _id: string;
@@ -66,6 +67,9 @@ export default function ShopPage() {
             Explore our full collection of handcrafted items made with passion and creativity.
           </p>
         </header>
+        <div>
+          <SearchBar />
+        </div>
 
         {loading ? (
           <p className='text-slate-600'>Loading products...</p>

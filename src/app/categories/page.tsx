@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { connectToDatabase } from '@/lib/mongodb';
 import Product from '@/models/Product';
 import Category from '@/models/Category';
+import SearchBar from '@/components/SearchBarCategories';
+
 const TEMP_CATEGORY = 'Temp';
 
 const DEFAULT_CATEGORIES = [
@@ -12,6 +14,7 @@ const DEFAULT_CATEGORIES = [
   'Pottery & Ceramics',
   'Stationery',
   'Textiles & Fabrics',
+  'Top Rated',
 ];
 
 const categoryImages: Record<string, string> = {
@@ -24,12 +27,13 @@ const categoryImages: Record<string, string> = {
 };
 
 const categoryDescriptions: Record<string, string> = {
-  'Home Decor': 'Handcrafted home décor items and accessories',
+  'Home Decor': 'Handcrafted home decor items and accessories',
   Jewelry: 'Unique handcrafted necklaces, rings, and bracelets',
   Kitchen: 'Artisan kitchen tools, dishes, and cookware',
   'Pottery & Ceramics': 'Handcrafted bowls, mugs, and decorative pieces',
   Stationery: 'Beautiful handmade paper and writing supplies',
   'Textiles & Fabrics': 'Handwoven scarves, blankets, and tapestries',
+  'Top Rated': 'The most good rated products',
 };
 
 type CategoryViewModel = {
@@ -125,7 +129,9 @@ export default async function CategoriesPage() {
           features unique pieces from talented artisans around the world.
         </p>
       </div>
-
+      <>
+        <SearchBar />
+      </>
       <div className='grid md:grid-cols-3 gap-6'>
         {categories.map((category) => (
           <Link

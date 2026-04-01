@@ -4,6 +4,7 @@ import Product from '@/models/Product';
 import BrowseByCategory from '@/components/home/BrowseByCategory';
 import CallToAction from '@/components/home/CallToAction';
 import FourTiles from '@/components/home/FourTiles';
+import Hero from '@/components/home/Hero';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,13 +114,8 @@ export default async function Home() {
   const categories = await getCategories();
 
   return (
-    <section className='space-y-8'>
-      <section className='space-y-3'>
-        <h1 className='text-3xl font-semibold tracking-tight'>Landing Page</h1>
-        <p className='text-slate-600'>
-          Base shell is ready. Next step is building real Header and Footer components.
-        </p>
-      </section>
+    <div className='space-y-8'>
+      <Hero />
 
       <FourTiles />
 
@@ -128,6 +124,6 @@ export default async function Home() {
       <BrowseByCategory categories={categories} />
 
       <CallToAction />
-    </section>
+    </div>
   );
 }

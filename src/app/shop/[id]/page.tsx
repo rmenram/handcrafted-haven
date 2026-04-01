@@ -13,6 +13,7 @@ export default function ProductDetailPage({ params }: Params) {
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [dbWarning, setDbWarning] = useState<string | null>(null);
     const { addToCart, isCartEnabled } = useCart();
     const [added, setAdded] = useState(false);
 
@@ -22,11 +23,16 @@ export default function ProductDetailPage({ params }: Params) {
         async function fetchProduct() {
             try {
                 const res = await fetch(`/api/products/${id}`);
-                if (!res.ok) {
-                    const data = await res.json();
+                const data = await res.json();
+                
+                if (!res.ok && !data.product) {
                     throw new Error(data.message || 'Failed to fetch product');
                 }
-                const data = await res.json();
+                
+                if (data.error) {
+                    setDbWarning(data.error);
+                }
+                
                 setProduct(data.product);
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -82,6 +88,12 @@ export default function ProductDetailPage({ params }: Params) {
                 <ChevronLeft className="h-4 w-4" />
                 Back to Marketplace
             </Link>
+
+            {dbWarning && (
+                <div className="mb-6 rounded-xl bg-amber-50 p-4 border border-amber-200 text-amber-800 text-sm">
+                    <strong>Note:</strong> {dbWarning} Please check your MongoDB credentials in <code>.env.local</code>.
+                </div>
+            )}
 
             <div className="grid gap-8 lg:grid-cols-2">
                 <div className="aspect-square overflow-hidden rounded-2xl bg-slate-100 shadow-sm border border-slate-200">

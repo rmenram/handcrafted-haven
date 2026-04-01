@@ -1,17 +1,28 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, Suspense } from "react";
 import ProductCard, { Product } from "@/components/ProductCard";
 import FilterBar from "@/components/FilterBar";
 import { LayoutGrid, Loader2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 
-export default function ShopPage() {
-    const [activeCategory, setActiveCategory] = useState("All");
+function ShopContent() {
+    const searchParams = useSearchParams();
+    const categoryParam = searchParams.get("category");
+    const [activeCategory, setActiveCategory] = useState(categoryParam || "All");
     const [productsData, setProductsData] = useState<Product[]>([]);
     const [categoriesList, setCategoriesList] = useState<string[]>(["All"]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [dbWarning, setDbWarning] = useState<string | null>(null);
+
+    // Update active category if URL param changes
+    useEffect(() => {
+        if (categoryParam) {
+            setActiveCategory(categoryParam);
+        }
+    }, [categoryParam]);
 
     useEffect(() => {
         async function fetchData() {
@@ -21,12 +32,12 @@ export default function ShopPage() {
                     fetch("/api/products/categories")
                 ]);
 
-                if (!productsRes.ok || !categoriesRes.ok) {
-                    throw new Error("Failed to fetch shop data");
-                }
-
                 const productsData = await productsRes.json();
                 const categoriesData = await categoriesRes.json();
+
+                if (productsData.error) {
+                    setDbWarning(productsData.error);
+                }
 
                 setProductsData(productsData.products || []);
                 
@@ -73,6 +84,12 @@ export default function ShopPage() {
                 <FilterBar categories={categoriesList} active={activeCategory} onChange={setActiveCategory} />
             </div>
 
+            {dbWarning && (
+                <div className="rounded-xl bg-amber-50 p-4 border border-amber-200 text-amber-800 text-sm">
+                    <strong>Note:</strong> {dbWarning} Please check your MongoDB credentials in <code>.env.local</code>.
+                </div>
+            )}
+
             <section aria-live="polite">
                 {loading ? (
                     <div className="flex min-h-[400px] flex-col items-center justify-center gap-3 text-slate-500">
@@ -110,5 +127,18 @@ export default function ShopPage() {
                 )}
             </section>
         </div>
+    );
+}
+
+export default function ShopPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex min-h-[400px] flex-col items-center justify-center gap-3 text-slate-500">
+                <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
+                <p className="text-sm font-medium">Loading Marketplace...</p>
+            </div>
+        }>
+            <ShopContent />
+        </Suspense>
     );
 }

@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { ShoppingCart, Star } from 'lucide-react';
 
 type Product = {
@@ -32,9 +33,10 @@ export default function FeaturedProducts({ products = [] }: FeaturedProductsProp
         ) : (
           <div className='grid gap-8 sm:grid-cols-2 lg:grid-cols-3'>
             {products.map((product) => (
-              <article
+              <Link
                 key={product.id}
-                className='relative overflow-hidden rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md'
+                href={`/shop/${product.id}`}
+                className='relative overflow-hidden rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md block group'
               >
                 <div className='relative aspect-square bg-slate-100'>
                   {product.image ? (
@@ -42,7 +44,7 @@ export default function FeaturedProducts({ products = [] }: FeaturedProductsProp
                       src={product.image}
                       alt={product.name}
                       fill
-                      className='object-cover'
+                      className='object-cover group-hover:scale-105 transition-transform duration-300'
                       sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
                     />
                   ) : (
@@ -59,7 +61,7 @@ export default function FeaturedProducts({ products = [] }: FeaturedProductsProp
                 </div>
 
                 <div className='space-y-3 p-5'>
-                  <h3 className='text-lg font-medium'>{product.name}</h3>
+                  <h3 className='text-lg font-medium group-hover:text-orange-600 transition-colors'>{product.name}</h3>
                   <p className='font-semibold text-slate-600'>${product.price.toFixed(2)}</p>
 
                   <div className='flex items-center gap-1 text-sm text-slate-700'>
@@ -71,14 +73,13 @@ export default function FeaturedProducts({ products = [] }: FeaturedProductsProp
                   <p className='text-xs text-slate-500'>by {product.seller}</p>
                 </div>
 
-                <button
-                  type='button'
+                <div
                   className='absolute bottom-4 right-4 inline-flex items-center gap-1 rounded-full bg-orange-500 px-3 py-1.5 text-sm text-white shadow-sm transition hover:bg-orange-600'
                 >
                   <ShoppingCart className='h-4 w-4' />
-                  Add
-                </button>
-              </article>
+                  View
+                </div>
+              </Link>
             ))}
           </div>
         )}

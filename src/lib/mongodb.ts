@@ -31,8 +31,10 @@ export async function connectToDatabase() {
     return cache.conn;
   }
 
+  const uri = getMongoUri();
+
   if (!cache.promise) {
-    cache.promise = mongoose.connect(getMongoUri(), {
+    cache.promise = mongoose.connect(uri, {
       bufferCommands: false,
       dbName: 'handcrafted_haven',
       family: 4,

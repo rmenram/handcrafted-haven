@@ -17,9 +17,57 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ products });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : 'Failed to fetch products' },
-      { status: 500 }
-    );
+    console.error('API Error /api/products:', error);
+    
+    // Fallback data for demonstration if DB connection fails
+    const fallbackProducts = [
+      {
+        _id: '1',
+        name: 'Handmade Basket',
+        price: 25000,
+        category: 'Home Decor',
+        image: '/images/handmade-basket.webp',
+        description: 'Handwoven basket from local artisans.',
+        artisanName: 'Artisan One'
+      },
+      {
+        _id: '2',
+        name: 'Beaded Necklace',
+        price: 15000,
+        category: 'Jewelry',
+        image: '/images/beaded-necklace.webp',
+        description: 'Colorful beaded necklace with organic shells.',
+        artisanName: 'Artisan Two'
+      },
+      {
+        _id: '3',
+        name: 'Clay Mug Set',
+        price: 32000,
+        category: 'Kitchen',
+        image: '/images/clay-mug-set.webp',
+        description: 'Set of 2 rustic ceramic mugs.',
+        artisanName: 'Artisan Three'
+      },
+      {
+        _id: '4',
+        name: 'Woven Wall Hanging',
+        price: 42000,
+        category: 'Home Decor',
+        image: '/images/woven-wall-hanging.webp',
+        description: 'Soft wool wall hanging for cozy interiors.',
+        artisanName: 'Artisan Four'
+      },
+      {
+        _id: '5',
+        name: 'Ceramic Bowl',
+        price: 18000,
+        category: 'Kitchen',
+        image: '/images/ceramic-bowl.webp',
+        description: 'White glazed bowl with handmade imperfections.',
+        artisanName: 'Artisan Five'
+      }
+    ];
+
+    return NextResponse.json({ products: fallbackProducts, error: 'Database connection failed. Showing fallback data.' });
   }
 }

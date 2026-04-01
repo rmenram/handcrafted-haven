@@ -27,7 +27,7 @@ export default function BrowseByCategory({ categories }: { categories: Category[
         {categories.map((category) => (
           <Link
             key={category.name}
-            href={`/category/${encodeURIComponent(category.name)}`}
+            href={`/shop?category=${encodeURIComponent(category.name)}`}
             className='group relative rounded-xl overflow-hidden shadow-lg'
           >
             <div className='aspect-[4/3] relative'>

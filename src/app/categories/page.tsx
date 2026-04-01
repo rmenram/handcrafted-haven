@@ -6,6 +6,7 @@ import Category from '@/models/Category';
 import SearchBar from '@/components/SearchBarCategories';
 
 const TEMP_CATEGORY = 'Temp';
+const TOP_RATED_NAME = 'Top Rated';
 
 const DEFAULT_CATEGORIES = [
   'Home Decor',
@@ -14,16 +15,17 @@ const DEFAULT_CATEGORIES = [
   'Pottery & Ceramics',
   'Stationery',
   'Textiles & Fabrics',
-  'Top Rated',
+  TOP_RATED_NAME,
 ];
 
 const categoryImages: Record<string, string> = {
-  'Home Decor': '/images/home-decor.webp',
-  Jewelry: '/images/jewelry.webp',
-  Kitchen: '/images/kitchen.webp',
-  'Pottery & Ceramics': '/images/ceramics.webp',
-  Stationery: '/images/stationery.webp',
-  'Textiles & Fabrics': '/images/textiles.webp',
+  'home decor': '/images/home-decor.webp',
+  jewelry: '/images/jewelry.webp',
+  kitchen: '/images/kitchen.webp',
+  'pottery & ceramics': '/images/ceramics.webp',
+  stationery: '/images/stationery.webp',
+  'textiles & fabrics': '/images/textiles.webp',
+  'top rated': '/images/top-rated.webp',
 };
 
 const categoryDescriptions: Record<string, string> = {
@@ -33,7 +35,7 @@ const categoryDescriptions: Record<string, string> = {
   'Pottery & Ceramics': 'Handcrafted bowls, mugs, and decorative pieces',
   Stationery: 'Beautiful handmade paper and writing supplies',
   'Textiles & Fabrics': 'Handwoven scarves, blankets, and tapestries',
-  'Top Rated': 'The most good rated products',
+  'Top Rated': 'Our highest-rated handcrafted products',
 };
 
 type CategoryViewModel = {
@@ -41,6 +43,10 @@ type CategoryViewModel = {
   productCount: number;
   image?: string;
 };
+
+function getCategoryImage(name: string) {
+  return categoryImages[name.trim().toLowerCase()];
+}
 
 async function getCategories(): Promise<CategoryViewModel[]> {
   try {
@@ -50,38 +56,52 @@ async function getCategories(): Promise<CategoryViewModel[]> {
       .select('name lowerName image')
       .lean();
 
-    const categories = await Product.aggregate<{
-      name: string;
-      lowerName: string;
-      productCount: number;
-    }>([
-      {
-        $match: {
-          category: { $not: new RegExp(`^${TEMP_CATEGORY}$`, 'i') },
+    const [categories, topRatedCount] = await Promise.all([
+      Product.aggregate<{
+        name: string;
+        lowerName: string;
+        productCount: number;
+      }>([
+        {
+          $match: {
+            category: { $not: new RegExp(`^${TEMP_CATEGORY}$`, 'i') },
+          },
         },
-      },
-      {
-        $group: {
-          _id: { $toLower: { $trim: { input: '$category' } } },
-          name: { $first: '$category' },
-          productCount: { $sum: 1 },
+        {
+          $group: {
+            _id: { $toLower: { $trim: { input: '$category' } } },
+            name: { $first: '$category' },
+            productCount: { $sum: 1 },
+          },
         },
-      },
-      {
-        $project: {
-          lowerName: '$_id',
-          name: '$name',
-          productCount: 1,
-          _id: 0,
+        {
+          $project: {
+            lowerName: '$_id',
+            name: '$name',
+            productCount: 1,
+            _id: 0,
+          },
         },
-      },
+      ]),
+      Product.countDocuments({
+        rating: { $gte: 4 },
+        category: { $not: new RegExp(`^${TEMP_CATEGORY}$`, 'i') },
+      }),
     ]);
+
+    const topRatedLowerName = TOP_RATED_NAME.toLowerCase();
 
     const mergedCounts = new Map<string, { name: string; productCount: number; image: string }>();
 
     for (const category of DEFAULT_CATEGORIES) {
       mergedCounts.set(category.toLowerCase(), { name: category, productCount: 0, image: '' });
     }
+
+    mergedCounts.set(topRatedLowerName, {
+      name: TOP_RATED_NAME,
+      productCount: topRatedCount,
+      image: getCategoryImage(TOP_RATED_NAME) ?? '',
+    });
 
     for (const category of dbCategories) {
       mergedCounts.set(category.lowerName, {
@@ -94,7 +114,12 @@ async function getCategories(): Promise<CategoryViewModel[]> {
     for (const category of categories) {
       const rawName = String(category.name ?? '').trim();
       const lowerName = String(category.lowerName ?? '').trim();
-      if (!rawName || !lowerName || rawName.toLowerCase() === TEMP_CATEGORY.toLowerCase()) {
+      if (
+        !rawName ||
+        !lowerName ||
+        rawName.toLowerCase() === TEMP_CATEGORY.toLowerCase() ||
+        rawName.toLowerCase() === topRatedLowerName
+      ) {
         continue;
       }
 
@@ -122,13 +147,16 @@ export default async function CategoriesPage() {
 
   return (
     <section className='mx-auto max-w-6xl space-y-8 px-4 py-12'>
-      <div className='text-center mb-10'>
-        <h1 className='text-3xl font-bold'>Browse by Category</h1>
+      <header className='space-y-2'>
+        <h1 className='text-4xl font-semibold tracking-tight'>Browse by Category</h1>
         <p className='text-slate-600'>
           Explore our diverse collection of handcrafted items organized by craft type. Each category
           features unique pieces from talented artisans around the world.
         </p>
-      </div>
+      </header>
+
+      <SearchBar />
+
       <div className='grid md:grid-cols-3 gap-6'>
         {categories.map((category) => (
           <Link
@@ -138,7 +166,7 @@ export default async function CategoriesPage() {
           >
             <div className='aspect-[4/3] relative'>
               <Image
-                src={category.image || categoryImages[category.name] || '/images/home-decor.webp'}
+                src={category.image || getCategoryImage(category.name) || '/images/home-decor.webp'}
                 alt={category.name}
                 fill
                 className='object-cover group-hover:scale-110 transition duration-500'
@@ -165,9 +193,6 @@ export default async function CategoriesPage() {
           </Link>
         ))}
       </div>
-      <>
-        <SearchBar />
-      </>
 
       <section className='rounded-2xl bg-slate-100 px-6 py-14 text-center sm:px-10'>
         <div className='mx-auto max-w-4xl space-y-8'>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { ShoppingCart, Star } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import SearchBar from '@/components/SearchBarCategories';
 
 type Product = {
@@ -17,9 +18,21 @@ type Product = {
 };
 
 export default function ShopPage() {
+  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const searchQuery = (searchParams.get('search') ?? '').trim().toLowerCase();
+
+  const filteredProducts = products.filter((product) => {
+    if (!searchQuery) {
+      return true;
+    }
+
+    return [product.name, product.artisanName]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(searchQuery));
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -67,15 +80,21 @@ export default function ShopPage() {
             Explore our full collection of handcrafted items made with passion and creativity.
           </p>
         </header>
+        <SearchBar />
+
         {loading ? (
           <p className='text-slate-600'>Loading products...</p>
         ) : error ? (
           <p className='text-red-600'>Unable to load products: {error}</p>
-        ) : products.length === 0 ? (
-          <p className='text-slate-600'>No products found.</p>
+        ) : filteredProducts.length === 0 ? (
+          <p className='text-slate-600'>
+            {searchQuery
+              ? `No products matched "${searchParams.get('search') ?? ''}".`
+              : 'No products found.'}
+          </p>
         ) : (
           <div className='grid gap-8 sm:grid-cols-2 lg:grid-cols-3'>
-            {products.map((product) => (
+            {filteredProducts.map((product) => (
               <article
                 key={product._id}
                 className='relative overflow-hidden rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md'

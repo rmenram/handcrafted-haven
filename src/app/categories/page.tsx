@@ -129,9 +129,6 @@ export default async function CategoriesPage() {
           features unique pieces from talented artisans around the world.
         </p>
       </div>
-      <>
-        <SearchBar />
-      </>
       <div className='grid md:grid-cols-3 gap-6'>
         {categories.map((category) => (
           <Link
@@ -168,6 +165,9 @@ export default async function CategoriesPage() {
           </Link>
         ))}
       </div>
+      <>
+        <SearchBar />
+      </>
 
       <section className='rounded-2xl bg-slate-100 px-6 py-14 text-center sm:px-10'>
         <div className='mx-auto max-w-4xl space-y-8'>

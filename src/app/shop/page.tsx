@@ -67,10 +67,6 @@ export default function ShopPage() {
             Explore our full collection of handcrafted items made with passion and creativity.
           </p>
         </header>
-        <div>
-          <SearchBar />
-        </div>
-
         {loading ? (
           <p className='text-slate-600'>Loading products...</p>
         ) : error ? (

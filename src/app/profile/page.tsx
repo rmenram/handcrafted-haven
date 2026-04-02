@@ -37,6 +37,7 @@ type ArtisanProduct = {
   image: string;
   price: number;
   inStock: boolean;
+  stockQuantity: number;
   featured: boolean;
   artisanName?: string;
   rating?: number;
@@ -135,6 +136,7 @@ function ProfilePageContent() {
   const [productCategory, setProductCategory] = useState<string>(productCategories[0]);
   const [productImage, setProductImage] = useState('');
   const [productPrice, setProductPrice] = useState('');
+  const [productStockQuantity, setProductStockQuantity] = useState('1');
   const [productInStock, setProductInStock] = useState(true);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isSavingFeaturedProductId, setIsSavingFeaturedProductId] = useState<string | null>(null);
@@ -615,6 +617,7 @@ function ProfilePageContent() {
     setProductCategory(productCategories[0]);
     setProductImage('');
     setProductPrice('');
+    setProductStockQuantity('1');
     setProductInStock(true);
   }
 
@@ -625,6 +628,7 @@ function ProfilePageContent() {
     setProductCategory(product.category);
     setProductImage(product.image);
     setProductPrice(String(product.price));
+    setProductStockQuantity(String(product.stockQuantity ?? (product.inStock ? 1 : 0)));
     setProductInStock(product.inStock);
     setProductSuccess(null);
     setProductsError(null);
@@ -636,13 +640,17 @@ function ProfilePageContent() {
     setProductSuccess(null);
 
     const parsedPrice = Number(productPrice);
+    const parsedStockQuantity = Number(productStockQuantity);
     if (
       productName.trim().length < 2 ||
       productDescription.trim().length < 10 ||
       productCategory.trim().length < 2 ||
       !productImage.trim() ||
       Number.isNaN(parsedPrice) ||
-      parsedPrice < 0
+      parsedPrice < 0 ||
+      Number.isNaN(parsedStockQuantity) ||
+      !Number.isInteger(parsedStockQuantity) ||
+      parsedStockQuantity < 0
     ) {
       setProductsError('Please complete all product fields with valid values.');
       return;
@@ -673,7 +681,8 @@ function ProfilePageContent() {
           category: productCategory.trim(),
           image: productImage.trim(),
           price: parsedPrice,
-          inStock: productInStock,
+          stockQuantity: parsedStockQuantity,
+          inStock: parsedStockQuantity > 0,
         }),
       });
 
@@ -1570,11 +1579,35 @@ function ProfilePageContent() {
                                     </div>
                                   </div>
 
+                                  <div className='space-y-2'>
+                                    <label className='text-sm font-medium'>Stock quantity</label>
+                                    <input
+                                      type='number'
+                                      min='0'
+                                      step='1'
+                                      value={productStockQuantity}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        setProductStockQuantity(value);
+                                        setProductInStock(Number(value) > 0);
+                                      }}
+                                      className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                                    />
+                                  </div>
+
                                   <label className='inline-flex items-center gap-2 text-sm text-foreground'>
                                     <input
                                       type='checkbox'
                                       checked={productInStock}
-                                      onChange={(event) => setProductInStock(event.target.checked)}
+                                      onChange={(event) => {
+                                        const checked = event.target.checked;
+                                        setProductInStock(checked);
+                                        if (!checked) {
+                                          setProductStockQuantity('0');
+                                        } else if (Number(productStockQuantity) < 1) {
+                                          setProductStockQuantity('1');
+                                        }
+                                      }}
                                       className='h-4 w-4 rounded border-border'
                                     />
                                     In stock
@@ -1704,11 +1737,37 @@ function ProfilePageContent() {
                           />
                         </div>
                       </div>
+                      <div className='space-y-2'>
+                        <label htmlFor='productStockQuantity' className='text-sm font-medium'>
+                          Stock quantity
+                        </label>
+                        <input
+                          id='productStockQuantity'
+                          type='number'
+                          min='0'
+                          step='1'
+                          value={productStockQuantity}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setProductStockQuantity(value);
+                            setProductInStock(Number(value) > 0);
+                          }}
+                          className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                        />
+                      </div>
                       <label className='inline-flex items-center gap-2 text-sm text-foreground'>
                         <input
                           type='checkbox'
                           checked={productInStock}
-                          onChange={(event) => setProductInStock(event.target.checked)}
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            setProductInStock(checked);
+                            if (!checked) {
+                              setProductStockQuantity('0');
+                            } else if (Number(productStockQuantity) < 1) {
+                              setProductStockQuantity('1');
+                            }
+                          }}
                           className='h-4 w-4 rounded border-border'
                         />
                         In stock
@@ -1766,7 +1825,9 @@ function ProfilePageContent() {
                               </p>
                               <p className='text-sm font-medium'>${product.price.toFixed(2)}</p>
                               <p className='text-xs text-muted-foreground'>
-                                {product.inStock ? 'In stock' : 'Out of stock'}
+                                {product.inStock
+                                  ? `In stock (${product.stockQuantity} available)`
+                                  : 'Out of stock'}
                               </p>
                               {product.featured && (
                                 <p className='text-xs font-medium text-amber-700'>
@@ -2230,10 +2291,17 @@ function ProfilePageContent() {
                 <h2 className='text-xl font-bold'>Wishlist</h2>
                 <p className='text-sm text-muted-foreground'>Items you&apos;ve saved for later</p>
               </header>
-              <div className='py-12 text-center text-muted-foreground'>
-                <Heart className='mx-auto mb-4 h-12 w-12 opacity-20' />
-                <p>Your wishlist is empty</p>
-                <p className='mt-2 text-sm'>Save items you love to find them easily later!</p>
+              <div className='space-y-4 p-6 text-sm text-muted-foreground'>
+                <p>
+                  Manage wishlist items from the dedicated wishlist page, where you can remove items
+                  or move them to cart.
+                </p>
+                <Link
+                  href='/wishlist'
+                  className='inline-flex h-10 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700'
+                >
+                  Open Wishlist
+                </Link>
               </div>
             </section>
           )}

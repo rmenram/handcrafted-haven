@@ -47,8 +47,9 @@ export default function Header() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
-  const { getCartItemsCount, isCartEnabled } = useCart();
+  const { getCartItemsCount, wishlistItems, isCartEnabled } = useCart();
   const cartItemsCount = getCartItemsCount();
+  const wishlistItemsCount = wishlistItems.length;
 
   useEffect(() => {
     let isMounted = true;
@@ -175,10 +176,15 @@ export default function Header() {
             {isCartEnabled ? (
               <Link
                 href='/wishlist'
-                className='inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
+                className='relative inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
                 aria-label='Wishlist'
               >
                 <Heart className='h-5 w-5' />
+                {wishlistItemsCount > 0 && (
+                  <span className='absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-xs font-medium text-white'>
+                    {wishlistItemsCount}
+                  </span>
+                )}
               </Link>
             ) : (
               <span

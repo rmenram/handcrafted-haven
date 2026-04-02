@@ -31,11 +31,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Invalid email or password' }, { status: 401 });
     }
 
+    const role = user.role ?? 'purchaser';
+
     const token = signAuthToken({
       sub: user._id.toString(),
       email: user.email,
       name: user.name,
-      role: user.role,
+      role,
     });
 
     const response = NextResponse.json({
@@ -43,7 +45,7 @@ export async function POST(request: Request) {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
-        role: user.role,
+        role,
       },
     });
 

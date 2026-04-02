@@ -1,5 +1,28 @@
 import { model, models, Schema, type InferSchemaType } from 'mongoose';
 
+const cartItemSchema = new Schema(
+  {
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    name: { type: String, required: true, trim: true },
+    price: { type: Number, required: true, min: 0 },
+    image: { type: String, trim: true, default: '' },
+    artisanName: { type: String, trim: true, default: '' },
+    quantity: { type: Number, required: true, min: 1, default: 1 },
+  },
+  { _id: false }
+);
+
+const wishlistItemSchema = new Schema(
+  {
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    name: { type: String, required: true, trim: true },
+    price: { type: Number, required: true, min: 0 },
+    image: { type: String, trim: true, default: '' },
+    artisanName: { type: String, trim: true, default: '' },
+  },
+  { _id: false }
+);
+
 const userSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -18,6 +41,8 @@ const userSchema = new Schema(
       default: 'purchaser',
       required: true,
     },
+    cartItems: { type: [cartItemSchema], default: [] },
+    wishlistItems: { type: [wishlistItemSchema], default: [] },
   },
   { timestamps: true }
 );
@@ -67,6 +92,29 @@ if (existingUserModel) {
   if (!existingUserModel.schema.path('artisanRating')) {
     existingUserModel.schema.add({
       artisanRating: { type: Number, min: 0, max: 5, default: 0 },
+    });
+  }
+
+  if (!existingUserModel.schema.path('role')) {
+    existingUserModel.schema.add({
+      role: {
+        type: String,
+        enum: ['purchaser', 'artisan', 'admin'],
+        default: 'purchaser',
+        required: true,
+      },
+    });
+  }
+
+  if (!existingUserModel.schema.path('cartItems')) {
+    existingUserModel.schema.add({
+      cartItems: { type: [cartItemSchema], default: [] },
+    });
+  }
+
+  if (!existingUserModel.schema.path('wishlistItems')) {
+    existingUserModel.schema.add({
+      wishlistItems: { type: [wishlistItemSchema], default: [] },
     });
   }
 }

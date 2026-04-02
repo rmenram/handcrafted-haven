@@ -54,6 +54,7 @@ export async function GET() {
         image: product.image,
         price: product.price,
         inStock: product.inStock,
+        stockQuantity: Number(product.stockQuantity ?? (product.inStock ? 1 : 0)),
         rating: Number(reviewStatsById.get(String(product._id))?.rating ?? product.rating ?? 0),
         reviewCount: Number(
           reviewStatsById.get(String(product._id))?.reviewCount ?? product.reviewCount ?? 0
@@ -90,7 +91,10 @@ export async function PATCH(request: Request) {
       await Product.updateMany({ _id: { $in: selectedIds } }, { $set: { featured: true } });
     }
 
-    const featuredProducts = await Product.find({ featured: true, inStock: true })
+    const featuredProducts = await Product.find({
+      featured: true,
+      $or: [{ stockQuantity: { $gt: 0 } }, { stockQuantity: { $exists: false }, inStock: true }],
+    })
       .sort({ updatedAt: -1, createdAt: -1 })
       .limit(12)
       .lean();
@@ -103,6 +107,7 @@ export async function PATCH(request: Request) {
         image: product.image,
         price: product.price,
         featured: Boolean(product.featured),
+        stockQuantity: Number(product.stockQuantity ?? (product.inStock ? 1 : 0)),
       })),
     });
   } catch {

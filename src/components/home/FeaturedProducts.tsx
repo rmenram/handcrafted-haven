@@ -1,12 +1,16 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
-import { ShoppingCart, Star } from 'lucide-react';
+import { Heart, ShoppingCart, Star } from 'lucide-react';
+import { useCart } from '@/context/CartContext';
 
 type Product = {
   id: string;
   name: string;
   price: number;
   image?: string;
+  stockQuantity?: number;
   rating: number;
   reviews: number;
   seller: string;
@@ -18,6 +22,8 @@ type FeaturedProductsProps = {
 };
 
 export default function FeaturedProducts({ products = [] }: FeaturedProductsProps) {
+  const { addToCart, isCartEnabled, isInWishlist, toggleWishlist } = useCart();
+
   return (
     <section className='py-2'>
       <div className='mx-auto max-w-6xl space-y-8 px-4'>
@@ -45,6 +51,13 @@ export default function FeaturedProducts({ products = [] }: FeaturedProductsProp
                 key={product.id}
                 className='relative overflow-hidden rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md'
               >
+                {Number(product.stockQuantity ?? 0) > 0 &&
+                  Number(product.stockQuantity ?? 0) <= 5 && (
+                    <span className='absolute right-3 top-3 z-10 rounded-md bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800 shadow-sm'>
+                      Only {Number(product.stockQuantity ?? 0)} left
+                    </span>
+                  )}
+
                 <div className='relative aspect-square bg-slate-100'>
                   {product.image ? (
                     <Image
@@ -80,13 +93,48 @@ export default function FeaturedProducts({ products = [] }: FeaturedProductsProp
                   <p className='text-xs text-slate-500'>by {product.seller}</p>
                 </div>
 
-                <button
-                  type='button'
-                  className='absolute bottom-4 right-4 inline-flex items-center gap-1 rounded-full bg-orange-500 px-3 py-1.5 text-sm text-white shadow-sm transition hover:bg-orange-600'
-                >
-                  <ShoppingCart className='h-4 w-4' />
-                  Add
-                </button>
+                {isCartEnabled && (
+                  <>
+                    <button
+                      type='button'
+                      className='absolute bottom-4 right-4 inline-flex items-center gap-1 rounded-full bg-orange-500 px-3 py-1.5 text-sm text-white shadow-sm transition hover:bg-orange-600'
+                      onClick={() =>
+                        addToCart({
+                          id: product.id,
+                          name: product.name,
+                          price: product.price,
+                          image: product.image,
+                          artisanName: product.seller,
+                        })
+                      }
+                      disabled={Number(product.stockQuantity ?? 0) < 1}
+                    >
+                      <ShoppingCart className='h-4 w-4' />
+                      {Number(product.stockQuantity ?? 0) < 1 ? 'Out' : 'Add'}
+                    </button>
+
+                    <button
+                      type='button'
+                      className='absolute bottom-4 right-24 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50'
+                      onClick={() =>
+                        toggleWishlist({
+                          id: product.id,
+                          name: product.name,
+                          price: product.price,
+                          image: product.image,
+                          artisanName: product.seller,
+                        })
+                      }
+                      aria-label={`Toggle ${product.name} in wishlist`}
+                    >
+                      <Heart
+                        className={`h-4 w-4 ${
+                          isInWishlist(product.id) ? 'fill-red-500 text-red-500' : 'text-slate-500'
+                        }`}
+                      />
+                    </button>
+                  </>
+                )}
               </article>
             ))}
           </div>

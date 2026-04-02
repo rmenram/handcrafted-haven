@@ -12,6 +12,7 @@ const updateProductSchema = z.object({
   image: z.string().url(),
   price: z.number().min(0),
   inStock: z.boolean(),
+  stockQuantity: z.number().int().min(0).optional(),
 });
 
 async function requireAdminAuth() {
@@ -57,6 +58,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     await connectToDatabase();
 
+    const stockQuantity = parsed.data.stockQuantity ?? (parsed.data.inStock ? 1 : 0);
+
     const product = await Product.findByIdAndUpdate(
       id,
       {
@@ -66,7 +69,8 @@ export async function PATCH(request: Request, context: RouteContext) {
           category: parsed.data.category,
           image: parsed.data.image,
           price: parsed.data.price,
-          inStock: parsed.data.inStock,
+          inStock: stockQuantity > 0,
+          stockQuantity,
         },
       },
       { new: true }
@@ -85,6 +89,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         image: product.image,
         price: product.price,
         inStock: product.inStock,
+        stockQuantity: Number(product.stockQuantity ?? (product.inStock ? 1 : 0)),
         featured: Boolean(product.featured),
         artisanName: product.artisanName,
         rating: Number(product.rating ?? 0),

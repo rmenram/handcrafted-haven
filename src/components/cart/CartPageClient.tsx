@@ -1,12 +1,56 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { useCart } from '@/context/CartContext';
 
 export default function CartPageClient() {
-  const { cartItems, removeFromCart, updateQuantity, clearCart, getCartTotal, isCartEnabled } =
-    useCart();
+  const router = useRouter();
+  const {
+    cartItems,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    getCartTotal,
+    isCartEnabled,
+    showSuccessToast,
+    showErrorToast,
+  } = useCart();
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  async function handleCheckout() {
+    if (isCheckingOut) {
+      return;
+    }
+
+    setIsCheckingOut(true);
+    setCheckoutError(null);
+
+    try {
+      const response = await fetch('/api/orders/checkout', { method: 'POST' });
+      const data = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        const message = data.message ?? 'Unable to complete checkout. Please try again.';
+        setCheckoutError(message);
+        showErrorToast(message);
+        return;
+      }
+
+      clearCart();
+      showSuccessToast('Checkout completed successfully');
+      router.push('/profile?tab=orders');
+    } catch {
+      const message = 'Unable to connect. Please try again.';
+      setCheckoutError(message);
+      showErrorToast(message);
+    } finally {
+      setIsCheckingOut(false);
+    }
+  }
 
   if (!isCartEnabled) {
     return (
@@ -74,21 +118,30 @@ export default function CartPageClient() {
               className='flex gap-4 rounded-lg border border-border bg-card p-4'
             >
               <div className='flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted'>
-                <span className='text-xs font-medium text-muted-foreground'>
-                  Item #{item.product.id}
-                </span>
+                {item.product.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.product.image}
+                    alt={item.product.name}
+                    className='h-full w-full object-cover'
+                  />
+                ) : (
+                  <span className='text-xs font-medium text-muted-foreground'>No image</span>
+                )}
               </div>
 
               <div className='flex-1 space-y-2'>
                 <div className='flex justify-between gap-3'>
                   <div>
                     <Link
-                      href={`/product/${item.product.id}`}
+                      href={`/shop/${item.product.id}`}
                       className='font-semibold hover:text-amber-600'
                     >
                       {item.product.name}
                     </Link>
-                    <p className='text-sm text-muted-foreground'>by {item.product.artisanName}</p>
+                    <p className='text-sm text-muted-foreground'>
+                      by {item.product.artisanName ?? 'Unknown artisan'}
+                    </p>
                   </div>
 
                   <button
@@ -183,10 +236,14 @@ export default function CartPageClient() {
 
             <button
               type='button'
-              className='inline-flex h-11 w-full items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700'
+              className='inline-flex h-11 w-full items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60'
+              onClick={handleCheckout}
+              disabled={isCheckingOut}
             >
-              Proceed to Checkout
+              {isCheckingOut ? 'Processing checkout...' : 'Proceed to Checkout'}
             </button>
+
+            {checkoutError && <p className='text-sm text-red-600'>{checkoutError}</p>}
 
             <div className='space-y-2 text-sm text-muted-foreground'>
               <p className='flex items-center'>

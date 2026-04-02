@@ -27,7 +27,13 @@ export async function GET(req: Request) {
 
     const products = await Product.find(filter).sort({ createdAt: -1 }).limit(50).lean();
 
-    return NextResponse.json({ products });
+    return NextResponse.json({
+      products: products.map((product) => ({
+        ...product,
+        inStock: Boolean(product.stockQuantity ?? (product.inStock ? 1 : 0)),
+        stockQuantity: Number(product.stockQuantity ?? (product.inStock ? 1 : 0)),
+      })),
+    });
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : 'Failed to fetch products' },

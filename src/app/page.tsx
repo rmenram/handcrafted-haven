@@ -15,6 +15,7 @@ type FeaturedProductViewModel = {
   name: string;
   price: number;
   image?: string;
+  stockQuantity?: number;
   rating: number;
   reviews: number;
   seller: string;
@@ -26,9 +27,9 @@ async function getFeaturedProducts(): Promise<FeaturedProductViewModel[]> {
     await connectToDatabase();
 
     const products = await Product.find({
-      inStock: true,
       featured: true,
       category: { $ne: TEMP_CATEGORY },
+      $or: [{ stockQuantity: { $gt: 0 } }, { stockQuantity: { $exists: false }, inStock: true }],
     })
       .sort({ updatedAt: -1, createdAt: -1 })
       .limit(6)
@@ -39,6 +40,7 @@ async function getFeaturedProducts(): Promise<FeaturedProductViewModel[]> {
       name: product.name,
       price: Number(product.price ?? 0),
       image: product.image,
+      stockQuantity: Number(product.stockQuantity ?? (product.inStock ? 1 : 0)),
       rating: Number(product.rating ?? 0),
       reviews: Number(product.reviewCount ?? 0),
       seller: product.artisanName ?? 'Handcrafted Haven',

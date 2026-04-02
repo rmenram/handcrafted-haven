@@ -12,6 +12,7 @@ const createProductSchema = z.object({
   image: z.string().url(),
   price: z.number().min(0),
   inStock: z.boolean(),
+  stockQuantity: z.number().int().min(0).optional(),
 });
 
 const updateProductSchema = createProductSchema.extend({
@@ -62,6 +63,7 @@ export async function GET() {
         image: product.image,
         price: product.price,
         inStock: product.inStock,
+        stockQuantity: Number(product.stockQuantity ?? (product.inStock ? 1 : 0)),
         featured: Boolean(product.featured),
       })),
     });
@@ -86,8 +88,12 @@ export async function POST(request: Request) {
 
     await connectToDatabase();
 
+    const stockQuantity = parsed.data.stockQuantity ?? (parsed.data.inStock ? 1 : 0);
+
     const product = await Product.create({
       ...parsed.data,
+      stockQuantity,
+      inStock: stockQuantity > 0,
       artisanName: payload.name,
       artisanUserId: payload.sub,
       rating: 0,
@@ -104,6 +110,7 @@ export async function POST(request: Request) {
           image: product.image,
           price: product.price,
           inStock: product.inStock,
+          stockQuantity: Number(product.stockQuantity ?? (product.inStock ? 1 : 0)),
           featured: Boolean(product.featured),
         },
       },
@@ -130,6 +137,8 @@ export async function PATCH(request: Request) {
 
     await connectToDatabase();
 
+    const stockQuantity = parsed.data.stockQuantity ?? (parsed.data.inStock ? 1 : 0);
+
     const product = await Product.findOneAndUpdate(
       {
         _id: parsed.data.id,
@@ -142,7 +151,8 @@ export async function PATCH(request: Request) {
           category: parsed.data.category,
           image: parsed.data.image,
           price: parsed.data.price,
-          inStock: parsed.data.inStock,
+          inStock: stockQuantity > 0,
+          stockQuantity,
           artisanUserId: payload.sub,
           artisanName: payload.name,
         },
@@ -163,6 +173,7 @@ export async function PATCH(request: Request) {
         image: product.image,
         price: product.price,
         inStock: product.inStock,
+        stockQuantity: Number(product.stockQuantity ?? (product.inStock ? 1 : 0)),
         featured: Boolean(product.featured),
       },
     });

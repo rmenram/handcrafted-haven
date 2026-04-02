@@ -29,12 +29,9 @@ async function getProductsForCategory(categoryName: string): Promise<CategoryPro
     }
 
     if (categoryName.toLowerCase() === 'top rated') {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/products`,
-        {
-          cache: 'no-store',
-        }
-      );
+      const res = await fetch('/api/products', {
+        cache: 'no-store',
+      });
       if (!res.ok) return [];
       const data = (await res.json()) as { products?: CategoryProductViewModel[] };
       return (data.products ?? [])
@@ -43,10 +40,9 @@ async function getProductsForCategory(categoryName: string): Promise<CategoryPro
         .slice(0, 24);
     }
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/products?category=${encodeURIComponent(categoryName)}`,
-      { cache: 'no-store' }
-    );
+    const res = await fetch(`/api/products?category=${encodeURIComponent(categoryName)}`, {
+      cache: 'no-store',
+    });
     if (!res.ok) return [];
     const data = (await res.json()) as { products?: CategoryProductViewModel[] };
     return data.products ?? [];

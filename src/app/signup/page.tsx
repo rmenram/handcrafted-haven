@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 export default function SignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'purchaser' | 'artisan'>('purchaser');
+  const [role, setRole] = useState<'purchaser' | 'artisan'>((searchParams.get('role') as 'purchaser' | 'artisan') || 'purchaser');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 

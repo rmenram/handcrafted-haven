@@ -44,22 +44,22 @@ export default function Footer() {
             <h3 className='mb-4 font-semibold text-foreground'>Customer Service</h3>
             <ul className='space-y-2 text-sm'>
               <li>
-                <a href='#' className='text-muted-foreground hover:text-amber-600'>
+                <a href='/contact' className='text-muted-foreground hover:text-amber-600'>
                   Contact Us
                 </a>
               </li>
               <li>
-                <a href='#' className='text-muted-foreground hover:text-amber-600'>
+                <a href='/shipping-info' className='text-muted-foreground hover:text-amber-600'>
                   Shipping Info
                 </a>
               </li>
               <li>
-                <a href='#' className='text-muted-foreground hover:text-amber-600'>
+                <a href='/return-policy' className='text-muted-foreground hover:text-amber-600'>
                   Returns Policy
                 </a>
               </li>
               <li>
-                <a href='#' className='text-muted-foreground hover:text-amber-600'>
+                <a href='/faq' className='text-muted-foreground hover:text-amber-600'>
                   FAQ
                 </a>
               </li>

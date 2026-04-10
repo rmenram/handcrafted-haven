@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Heart, ShoppingCart, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useCart } from '@/context/CartContext';
+import SkeletonCard from '@/components/SkeletonCard';
 
 const TEMP_CATEGORY = 'Temp';
 
@@ -88,7 +89,11 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       </header>
 
       {loading ? (
-        <p className='text-slate-600'>Loading products...</p>
+        <div className='grid gap-8 sm:grid-cols-2 lg:grid-cols-3'>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
       ) : products.length === 0 ? (
         <p className='rounded-lg border bg-white p-6 text-slate-600'>
           No products found in this category right now.

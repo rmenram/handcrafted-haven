@@ -7,6 +7,7 @@ import { Heart, ShoppingCart, Star } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import SearchBar from '@/components/SearchBarCategories';
 import { useCart } from '@/context/CartContext';
+import SkeletonCard from '@/components/SkeletonCard';
 
 type Product = {
   _id: string;
@@ -88,7 +89,11 @@ export default function ShopPage() {
         <SearchBar />
 
         {loading ? (
-          <p className='text-slate-600'>Loading products...</p>
+          <div className='grid gap-8 sm:grid-cols-2 lg:grid-cols-3'>
+            {Array.from({ length: 9 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
         ) : error ? (
           <p className='text-red-600'>Unable to load products: {error}</p>
         ) : filteredProducts.length === 0 ? (

@@ -1,4 +1,4 @@
-import { model, models, Schema, type InferSchemaType } from 'mongoose';
+import { model, models, Schema } from 'mongoose';
 
 const artisanSchema = new Schema(
   {

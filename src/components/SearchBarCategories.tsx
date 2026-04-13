@@ -9,7 +9,12 @@ export default function SearchBar() {
 
   const handleSearch = () => {
     const normalizedQuery = query.trim();
-    if (!normalizedQuery) return;
+    if (!normalizedQuery) {
+      setQuery('');
+      return;
+    }
+
+    setQuery('');
     router.push(`/shop?search=${encodeURIComponent(normalizedQuery)}`);
   };
 

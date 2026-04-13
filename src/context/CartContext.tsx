@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 type Product = {
@@ -9,6 +10,8 @@ type Product = {
   artisanName?: string;
   price: number;
   image?: string;
+  stockQuantity?: number;
+  inStock?: boolean;
 };
 
 type CartItem = {
@@ -48,6 +51,7 @@ type CartContextType = {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
   const [toastMessages, setToastMessages] = useState<ToastMessage[]>([]);
@@ -239,7 +243,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [pathname]);
 
   const effectiveCartItems = useMemo(
     () => (isCartEnabled ? cartItems : []),
@@ -253,6 +257,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addToCart = (product: Product, quantity = 1, customization?: string) => {
     if (!isCartEnabled) {
+      return;
+    }
+
+    if (typeof product.stockQuantity === 'number' && Number(product.stockQuantity) < 1) {
+      showErrorToast(`${product.name} is out of stock`);
       return;
     }
 
@@ -293,14 +302,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    setCartItems((prev) => {
-      const removedItem = prev.find((item) => item.product.id === productId);
-      if (removedItem) {
-        showSuccessToast(`${removedItem.product.name} removed from cart`);
-      }
+    const removedItem = cartItems.find((item) => item.product.id === productId);
 
-      return prev.filter((item) => item.product.id !== productId);
-    });
+    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
+
+    if (removedItem) {
+      showSuccessToast(`${removedItem.product.name} removed from cart`);
+    }
   };
 
   const updateQuantity = (productId: string, nextQuantity: number) => {

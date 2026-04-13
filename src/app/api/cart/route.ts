@@ -5,6 +5,7 @@ import { Types } from 'mongoose';
 import { verifyAuthToken } from '@/lib/auth';
 import { connectToDatabase } from '@/lib/mongodb';
 import User from '@/models/User';
+import Product from '@/models/Product';
 
 type StoredCartItem = {
   productId: Types.ObjectId | string;
@@ -115,15 +116,37 @@ export async function PUT(request: Request) {
       return NextResponse.json({ message: 'Invalid cart payload' }, { status: 400 });
     }
 
+    await connectToDatabase();
+
     const validItems = parsed.data.items.filter((item) => Types.ObjectId.isValid(item.productId));
 
-    await connectToDatabase();
+    const validProductIds = validItems.map((item) => new Types.ObjectId(item.productId));
+
+    const products = await Product.find({ _id: { $in: validProductIds } })
+      .select('_id inStock stockQuantity')
+      .lean();
+
+    const stockByProductId = new Map(
+      products.map((product) => [
+        String(product._id),
+        Number(product.stockQuantity ?? (product.inStock ? 1 : 0)),
+      ])
+    );
+
+    const inStockItems = validItems.filter((item) => {
+      const available = stockByProductId.get(item.productId);
+      if (typeof available !== 'number') {
+        return false;
+      }
+
+      return available >= item.quantity;
+    });
 
     const updatedUser = await User.findByIdAndUpdate(
       payload.sub,
       {
         $set: {
-          cartItems: validItems.map((item) => ({
+          cartItems: inStockItems.map((item) => ({
             productId: new Types.ObjectId(item.productId),
             name: item.name,
             price: item.price,

@@ -140,7 +140,7 @@ export default function CartPageClient() {
                       {item.product.name}
                     </Link>
                     <p className='text-sm text-muted-foreground'>
-                      by {item.product.artisanName ?? 'Unknown artisan'}
+                      by {item.product.artisanName?.trim() || 'Unknown artisan'}
                     </p>
                   </div>
 

@@ -10,6 +10,7 @@ export interface Product {
   category: string;
   image: string;
   description: string;
+  artisanName?: string;
   inStock?: boolean;
   stockQuantity?: number;
 }
@@ -44,7 +45,7 @@ export default function ProductCard({ product }: ProductCardProps) {
               Only {stockQuantity} left
             </p>
           )}
-          <p className='product-card-price'>UGX {product.price.toLocaleString()}</p>
+          <p className='product-card-price'>${product.price.toFixed(2)}</p>
           {isCartEnabled && (
             <button
               className='product-card-button'

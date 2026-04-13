@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Heart,
@@ -42,8 +42,9 @@ type MenuItem = {
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
@@ -140,6 +141,19 @@ export default function Header() {
     ].join(' ');
   };
 
+  function handleHeaderSearch() {
+    const normalizedQuery = searchInput.trim();
+
+    setSearchInput('');
+
+    if (!normalizedQuery) {
+      router.push('/shop');
+      return;
+    }
+
+    router.push(`/shop?search=${encodeURIComponent(normalizedQuery)}`);
+  }
+
   return (
     <header className='sticky top-0 z-50 w-full border-b border-border bg-background'>
       <div className='mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8'>
@@ -162,16 +176,32 @@ export default function Header() {
           </nav>
 
           <div className='flex items-center gap-2 sm:gap-3'>
-            <div className='relative hidden lg:flex'>
-              <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-              <input
-                type='search'
-                placeholder='Search products...'
-                className='h-10 w-64 rounded-md border border-border bg-input-background pl-10 pr-3 text-sm text-foreground outline-none transition-shadow focus:ring-2 focus:ring-amber-500/30'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+            <form
+              className='hidden lg:flex items-center gap-2'
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleHeaderSearch();
+              }}
+            >
+              <div className='relative'>
+                <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                <input
+                  type='search'
+                  name='search'
+                  placeholder='Search products...'
+                  className='h-10 w-64 rounded-md border border-border bg-input-background pl-10 pr-3 text-sm text-foreground outline-none transition-shadow focus:ring-2 focus:ring-amber-500/30'
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                />
+              </div>
+              <button
+                type='submit'
+                className='inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
+                aria-label='Search products'
+              >
+                <Search className='h-4 w-4' />
+              </button>
+            </form>
 
             {isCartEnabled ? (
               <Link

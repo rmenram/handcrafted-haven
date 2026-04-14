@@ -26,7 +26,13 @@ type OrderItem = {
   date: string;
   total: number;
   status: string;
-  items: number;
+  items: Array<{
+    productId: string;
+    name: string;
+    price: number;
+    quantity: number;
+    subtotal: number;
+  }>;
 };
 
 type ArtisanProduct = {
@@ -125,6 +131,7 @@ function ProfilePageContent() {
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [products, setProducts] = useState<ArtisanProduct[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
@@ -301,6 +308,10 @@ function ProfilePageContent() {
       setSaveSuccess(null);
     }
 
+    if (activeTab !== 'orders') {
+      setExpandedOrderId(null);
+    }
+
     if (activeTab !== 'users') {
       setAdminUsersError(null);
       setAdminUserSuccess(null);
@@ -435,13 +446,21 @@ function ProfilePageContent() {
           if (!response.ok) {
             setOrdersError(data.message ?? 'Unable to load your orders');
             setOrders([]);
+            setExpandedOrderId(null);
             return;
           }
 
-          setOrders(data.orders ?? []);
+          const loadedOrders = data.orders ?? [];
+          setOrders(loadedOrders);
+          setExpandedOrderId((current) =>
+            loadedOrders.some((order) => order.id === current)
+              ? current
+              : (loadedOrders[0]?.id ?? null)
+          );
         } catch {
           setOrdersError('Unable to connect. Please try again.');
           setOrders([]);
+          setExpandedOrderId(null);
         } finally {
           setIsLoadingOrders(false);
         }
@@ -1316,27 +1335,104 @@ function ProfilePageContent() {
                 )}
                 {!isLoadingOrders &&
                   !ordersError &&
-                  orders.map((order) => (
-                    <div
-                      key={order.id}
-                      className='flex items-center justify-between rounded-lg border border-border bg-background p-4 transition-shadow hover:shadow-md'
-                    >
-                      <div className='space-y-1'>
-                        <p className='font-semibold'>Order #{order.id.slice(-6).toUpperCase()}</p>
-                        <p className='text-sm text-muted-foreground'>
-                          {new Date(order.date).toLocaleDateString()} - {order.items}{' '}
-                          {order.items === 1 ? 'item' : 'items'}
-                        </p>
-                        <p className='text-sm'>
-                          <span className='font-medium'>Status:</span>{' '}
-                          <span className='text-green-600'>{order.status}</span>
-                        </p>
+                  orders.map((order) => {
+                    const isExpanded = expandedOrderId === order.id;
+
+                    return (
+                      <div
+                        key={order.id}
+                        className='overflow-hidden rounded-lg border border-border bg-background transition-shadow hover:shadow-md'
+                      >
+                        <button
+                          type='button'
+                          onClick={() =>
+                            setExpandedOrderId((current) =>
+                              current === order.id ? null : order.id
+                            )
+                          }
+                          className='flex w-full items-center justify-between gap-4 p-4 text-left'
+                          aria-expanded={isExpanded}
+                          aria-controls={`order-details-${order.id}`}
+                        >
+                          <div className='space-y-1'>
+                            <p className='font-semibold'>
+                              Order #{order.id.slice(-6).toUpperCase()}
+                            </p>
+                            <p className='text-sm text-muted-foreground'>
+                              {new Date(order.date).toLocaleDateString()} - {order.items.length}{' '}
+                              {order.items.length === 1 ? 'item' : 'items'}
+                            </p>
+                            <p className='text-sm'>
+                              <span className='font-medium'>Status:</span>{' '}
+                              <span className='text-green-600'>{order.status}</span>
+                            </p>
+                          </div>
+                          <div className='text-right'>
+                            <p className='text-lg font-bold'>${order.total.toFixed(2)}</p>
+                            <p className='text-xs text-muted-foreground'>
+                              {isExpanded ? 'Click to hide details' : 'Click to view items'}
+                            </p>
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div
+                            id={`order-details-${order.id}`}
+                            className='border-t border-border bg-card px-4 py-4'
+                          >
+                            <div className='mb-4 grid gap-3 sm:grid-cols-3'>
+                              <div className='rounded-md border border-border bg-background p-3'>
+                                <p className='text-xs uppercase tracking-wide text-muted-foreground'>
+                                  Order date
+                                </p>
+                                <p className='mt-1 text-sm font-medium'>
+                                  {new Date(order.date).toLocaleString()}
+                                </p>
+                              </div>
+                              <div className='rounded-md border border-border bg-background p-3'>
+                                <p className='text-xs uppercase tracking-wide text-muted-foreground'>
+                                  Status
+                                </p>
+                                <p className='mt-1 text-sm font-medium'>{order.status}</p>
+                              </div>
+                              <div className='rounded-md border border-border bg-background p-3'>
+                                <p className='text-xs uppercase tracking-wide text-muted-foreground'>
+                                  Total
+                                </p>
+                                <p className='mt-1 text-sm font-medium'>
+                                  ${order.total.toFixed(2)}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className='space-y-3'>
+                              <h3 className='text-sm font-semibold uppercase tracking-wide text-muted-foreground'>
+                                Items purchased
+                              </h3>
+                              <div className='space-y-3'>
+                                {order.items.map((item) => (
+                                  <div
+                                    key={`${order.id}-${item.productId}`}
+                                    className='flex items-start justify-between gap-4 rounded-md border border-border bg-background p-3'
+                                  >
+                                    <div className='space-y-1'>
+                                      <p className='font-medium'>{item.name}</p>
+                                      <p className='text-sm text-muted-foreground'>
+                                        Qty {item.quantity} x ${item.price.toFixed(2)}
+                                      </p>
+                                    </div>
+                                    <p className='text-sm font-semibold'>
+                                      ${item.subtotal.toFixed(2)}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className='text-right'>
-                        <p className='text-lg font-bold'>${order.total.toFixed(2)}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             </section>
           )}

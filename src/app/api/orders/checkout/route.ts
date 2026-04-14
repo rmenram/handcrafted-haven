@@ -17,6 +17,7 @@ type CheckoutOrderItem = {
   name: string;
   price: number;
   quantity: number;
+  remainingStock: number;
 };
 
 export async function POST() {
@@ -90,6 +91,7 @@ export async function POST() {
           name: product.name,
           price: Number(product.price ?? 0),
           quantity: requestedQuantity,
+          remainingStock: stockQuantity - requestedQuantity,
         };
       })
       .filter((item: CheckoutOrderItem | null): item is CheckoutOrderItem => Boolean(item));
@@ -135,13 +137,11 @@ export async function POST() {
       decrementedItems.push({ productId: item.productId, quantity: item.quantity });
     }
 
-    await Product.updateMany({ _id: { $in: validProductIds } }, [
-      {
-        $set: {
-          inStock: { $gt: ['$stockQuantity', 0] },
-        },
-      },
-    ]);
+    await Promise.all(
+      orderItems.map((item) =>
+        Product.updateOne({ _id: item.productId }, { $set: { inStock: item.remainingStock > 0 } })
+      )
+    );
 
     const total = orderItems.reduce((sum: number, item: CheckoutOrderItem) => {
       return sum + item.price * item.quantity;
@@ -164,7 +164,8 @@ export async function POST() {
         status: String(order.status ?? 'Pending'),
       },
     });
-  } catch {
+  } catch (error) {
+    console.error('Checkout failed:', error);
     return NextResponse.json({ message: 'Unable to complete checkout' }, { status: 500 });
   }
 }

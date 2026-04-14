@@ -460,7 +460,7 @@ export default function ProductDetailPage({ params }: Params) {
               !reviewEligibility.canCreateReview &&
               !reviewEligibility.hasPurchasedProduct && (
                 <p className='text-sm text-slate-600'>
-                  You can review this product after purchasing it.
+                  You can review this product after it has been delivered.
                 </p>
               )}
 

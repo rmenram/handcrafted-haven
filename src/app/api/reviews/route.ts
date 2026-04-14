@@ -58,6 +58,7 @@ export async function GET(request: Request) {
           const [hasPurchasedProduct, ownReview] = await Promise.all([
             Order.findOne({
               purchaserUserId: payload.sub,
+              status: 'Delivered',
               'items.productId': new Types.ObjectId(productId),
             })
               .select('_id')
@@ -135,6 +136,7 @@ export async function POST(request: Request) {
 
     const hasPurchasedProduct = await Order.findOne({
       purchaserUserId: payload.sub,
+      status: 'Delivered',
       'items.productId': new Types.ObjectId(parsed.data.productId),
     })
       .select('_id')

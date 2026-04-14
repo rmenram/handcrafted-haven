@@ -168,6 +168,7 @@ export default function WishlistPageClient() {
                     )
                   }
                   disabled={isOutOfStock}
+                  aria-label={`Add ${item.product.name} to cart`}
                 >
                   <ShoppingCart className='mr-2 h-4 w-4' />
                   {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}

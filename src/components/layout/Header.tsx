@@ -192,6 +192,7 @@ export default function Header() {
                   className='h-10 w-64 rounded-md border border-border bg-input-background pl-10 pr-3 text-sm text-foreground outline-none transition-shadow focus:ring-2 focus:ring-amber-500/30'
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
+                  aria-label='Search for products'
                 />
               </div>
               <button
@@ -290,6 +291,7 @@ export default function Header() {
                         type='button'
                         onClick={handleProfileMenuLogout}
                         className='mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent'
+                        aria-label='Sign out from your account'
                       >
                         <LogOut className='h-4 w-4 text-muted-foreground' />
                         Logout

@@ -193,6 +193,7 @@ export default function CartPageClient() {
               type='button'
               className='inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent'
               onClick={clearCart}
+              aria-label='Clear all items from cart'
             >
               Clear Cart
             </button>
@@ -239,6 +240,7 @@ export default function CartPageClient() {
               className='inline-flex h-11 w-full items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60'
               onClick={handleCheckout}
               disabled={isCheckingOut}
+              aria-label={isCheckingOut ? 'Processing checkout' : 'Proceed to checkout'}
             >
               {isCheckingOut ? 'Processing checkout...' : 'Proceed to Checkout'}
             </button>

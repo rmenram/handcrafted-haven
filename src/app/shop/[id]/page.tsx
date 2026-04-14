@@ -344,6 +344,7 @@ export default function ProductDetailPage({ params }: Params) {
                       })
                     }
                     disabled={isOutOfStock}
+                    aria-label={`Add ${product.name} to cart`}
                   >
                     {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
                   </button>
@@ -360,6 +361,7 @@ export default function ProductDetailPage({ params }: Params) {
                         stockQuantity,
                       })
                     }
+                    aria-label={`${isInWishlist(product._id) ? 'Remove from' : 'Add to'} wishlist`}
                   >
                     <Heart className='mr-2 inline h-4 w-4' />
                     {isInWishlist(product._id) ? 'Remove from Wishlist' : 'Add to Wishlist'}
@@ -397,6 +399,7 @@ export default function ProductDetailPage({ params }: Params) {
                       className='rounded-md border border-slate-300 bg-white px-2 py-1 text-sm'
                       value={reviewRating}
                       onChange={(event) => setReviewRating(Number(event.target.value))}
+                      aria-label='Review star rating'
                     >
                       {[5, 4, 3, 2, 1].map((value) => (
                         <option key={value} value={value}>
@@ -411,6 +414,7 @@ export default function ProductDetailPage({ params }: Params) {
                     placeholder='Share your experience with this product...'
                     value={reviewComment}
                     onChange={(event) => setReviewComment(event.target.value)}
+                    aria-label='Write your product review'
                   />
 
                   {reviewActionError && <p className='text-sm text-red-600'>{reviewActionError}</p>}
@@ -421,6 +425,7 @@ export default function ProductDetailPage({ params }: Params) {
                       className='inline-flex items-center justify-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:bg-slate-300'
                       onClick={handleReviewSubmit}
                       disabled={isSubmittingReview}
+                      aria-label={editingReviewId ? 'Update your review' : 'Submit your review'}
                     >
                       {isSubmittingReview
                         ? 'Saving...'
@@ -440,6 +445,7 @@ export default function ProductDetailPage({ params }: Params) {
                           setReviewActionError(null);
                         }}
                         disabled={isSubmittingReview}
+                        aria-label='Cancel review edit'
                       >
                         Cancel
                       </button>
@@ -506,6 +512,7 @@ export default function ProductDetailPage({ params }: Params) {
                             type='button'
                             className='inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50'
                             onClick={() => beginReviewEdit(review)}
+                            aria-label={`Edit review by ${review.userName}`}
                           >
                             Edit
                           </button>
@@ -513,6 +520,7 @@ export default function ProductDetailPage({ params }: Params) {
                             type='button'
                             className='inline-flex items-center justify-center rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-50'
                             onClick={() => void handleDeleteReview(review.id)}
+                            aria-label={`Delete review by ${review.userName}`}
                           >
                             Delete
                           </button>

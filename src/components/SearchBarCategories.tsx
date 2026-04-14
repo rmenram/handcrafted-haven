@@ -37,12 +37,14 @@ export default function SearchBar() {
               }
             }}
             className='flex-1 bg-transparent text-sm outline-none'
+            aria-label='Search for products'
           />
 
           <button
             type='button'
             onClick={handleSearch}
             className='text-sm text-muted-foreground transition hover:text-foreground'
+            aria-label='Submit product search'
           >
             Search →
           </button>

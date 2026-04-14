@@ -28,16 +28,25 @@ export default function ShopClient() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [minPrice, setMinPrice] = useState<number | ''>(0);
+  const [maxPrice, setMaxPrice] = useState<number | ''>(10000);
   const searchQuery = (searchParams.get('search') ?? '').trim().toLowerCase();
 
-  const filteredProducts = products.filter((product) => {
-    if (!searchQuery) {
-      return true;
-    }
+  const maxProductPrice = Math.max(...products.map((p) => p.price), 0);
+  const dynamicMaxPrice = maxProductPrice > 0 ? Math.ceil(maxProductPrice) : 10000;
 
-    return [product.name, product.artisanName]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(searchQuery));
+  const filteredProducts = products.filter((product) => {
+    const matchesSearch =
+      !searchQuery ||
+      [product.name, product.artisanName]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(searchQuery));
+
+    const minPriceNum = typeof minPrice === 'number' ? minPrice : 0;
+    const maxPriceNum = typeof maxPrice === 'number' ? maxPrice : dynamicMaxPrice;
+    const matchesPrice = product.price >= minPriceNum && product.price <= maxPriceNum;
+
+    return matchesSearch && matchesPrice;
   });
 
   useEffect(() => {
@@ -80,6 +89,62 @@ export default function ShopClient() {
   return (
     <>
       <SearchBar />
+
+      {!loading && !error && (
+        <div className='mb-8 space-y-4 rounded-lg border border-border bg-card p-6'>
+          <h2 className='text-lg font-semibold'>Filter by Price</h2>
+          <div className='flex flex-col gap-4 sm:flex-row sm:items-end'>
+            <div className='flex-1 space-y-2'>
+              <label htmlFor='minPrice' className='text-sm font-medium'>
+                Min Price
+              </label>
+              <input
+                id='minPrice'
+                type='number'
+                min='0'
+                max={dynamicMaxPrice}
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                aria-label='Minimum price filter'
+              />
+            </div>
+            <div className='flex-1 space-y-2'>
+              <label htmlFor='maxPrice' className='text-sm font-medium'>
+                Max Price
+              </label>
+              <input
+                id='maxPrice'
+                type='number'
+                min='0'
+                max={dynamicMaxPrice}
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                className='h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-500/30'
+                aria-label='Maximum price filter'
+              />
+            </div>
+            <button
+              type='button'
+              onClick={() => {
+                setMinPrice(0);
+                setMaxPrice(dynamicMaxPrice);
+              }}
+              className='inline-flex h-10 items-center rounded-md border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted'
+              aria-label='Reset price filters'
+            >
+              Reset
+            </button>
+          </div>
+          {(typeof minPrice === 'number' && minPrice > 0) ||
+          (typeof maxPrice === 'number' && maxPrice < dynamicMaxPrice) ? (
+            <p className='text-sm text-muted-foreground'>
+              Showing products from ${typeof minPrice === 'number' ? minPrice : 0} to $
+              {typeof maxPrice === 'number' ? maxPrice : dynamicMaxPrice}
+            </p>
+          ) : null}
+        </div>
+      )}
 
       {loading ? (
         <div className='grid gap-8 sm:grid-cols-2 lg:grid-cols-3'>
@@ -169,11 +234,10 @@ export default function ShopClient() {
                       })
                     }
                     disabled={Number(product.stockQuantity ?? (product.inStock ? 1 : 0)) < 1}
+                    aria-label={`Add ${product.name} to cart`}
                   >
                     <ShoppingCart className='h-4 w-4' />
-                    {Number(product.stockQuantity ?? (product.inStock ? 1 : 0)) < 1
-                      ? 'Out'
-                      : 'Add'}
+                    {Number(product.stockQuantity ?? (product.inStock ? 1 : 0)) < 1 ? 'Out' : 'Add'}
                   </button>
 
                   <button
@@ -188,7 +252,7 @@ export default function ShopClient() {
                         artisanName: product.artisanName,
                       })
                     }
-                    aria-label={`Toggle ${product.name} in wishlist`}
+                    aria-label={`${isInWishlist(product._id) ? 'Remove' : 'Add'} ${product.name} from wishlist`}
                   >
                     <Heart
                       className={`h-4 w-4 ${
